@@ -121,11 +121,6 @@ str = LString <$> enclosed (char '`') (char '`') (many (token beginning))
     beginning = space <|> letter 
             <|> nat   <|> mark
             <|> pre isPunctuation
-    _str      = do
-                  b   <- beginning
-                  end <- _str
-                  return (b : end)
-            <|> (pure <$> beginning)
 
 list :: Parser Exp
 list = LList <$> enclosed (token (char '[')) (token (char ']')) (sepBy (token (char ',')) term )
@@ -193,8 +188,8 @@ term :: Parser Exp
 term = enclosed (char '(') (char ')') (token term)
      <|> binaryOp 
      <|> token var
-     <|> literal
      <|> io
+     <|> literal
 
 identifier :: Parser String
 identifier = do
@@ -261,16 +256,16 @@ io = Io <$> (ioIn <|> ioOut)
 
 ioIn :: Parser IoExp
 ioIn = ( IoFileIn 
-         <$> path
+         <$> token path
          <*  token (string "~>")
-         <*> pType
+         <*> token pType
        ) <|> (IoStdIn <$> (token (string "~>") *> pType))
 
 ioOut :: Parser IoExp
-ioOut = ( IoFileIn 
-          <$> path
+ioOut = ( IoFileOut 
+          <$> token path
           <*  token (string "<~")
-          <*> pType
+          <*> token pType
         ) <|> (IoStdOut <$> (token (string "<~") *> pType))
 
 path :: Parser String
