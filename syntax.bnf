@@ -1,0 +1,46 @@
+<program>   ::= <flow> <program> | <flow>
+<cell>      ::= '{' <exp> '}' | <f_mod> '{' <func> '}' | '{' <func> '}' 
+                              | <f_mod> '{' <f_ref> '}' | '{' <f_ref> '}'
+  <f_mod>     ::= 'map'  /* [a] -> { a -> b }       -> [b] */
+                | 'keep' /* [a] -> { a -> bool }    -> [a] */
+                | 'gen'  /*  a  -> { seed (a) = 
+                                      #( yield (b)
+                                      ;  next_seed (a)
+                                      ;  continue (bool)
+                                      )# } -> [b] */
+                /*  _       a   -> { a -> b }       -> b   */
+<exp>        ::= <binary_op> | <flow> | <term> | <f_ref>
+  <binary_op>  ::= <operator> <term> <term>
+    <term>       ::= <binary_op> | <literal> | <var> | <io>
+    <operator>   ::= '+' | '-' | '*' | '/' | '^' | '&&' | '||' | '%'
+    <literal>    ::= <str> | <list> | <tuple> | <int> | <float> | <bool>
+    <int>        ::= '+' <natural> | '-' <natural> | <natural>
+    <float>      ::= <int> '.' <natural> | <int> '.'
+    <natural>    ::= '0' | '1' | '2' | ... | '9'
+    <bool>       ::= 'True' | 'False'
+    <str>        ::= '`' <_str> '`'
+      <_str>       ::= <space> <_str> | <letter> <_str> | <natural> <_str> | <mark> <_str>
+                       <space>        | <letter> <_str> | <natural>        | <mark> 
+    <mark>       ::= '@' | '/' | '$' | '!' | '#' | '%' | '^' | '&' | '*' | '(' | ')' |
+                     '{' | '}' | '[' | ']' | ':' | ';' | "'" | '|' | ',' | '.' | '?'
+    <space>      ::=  ' ' | '\t' | '\n' | '\r' 
+    <letter>     ::= 'a' | 'b' | 'c' | ... | 'z' | 'A' | 'B' | ... | 'Z'
+    <list>       ::= '[' <_list> ']'
+      <_list>      ::= <term> ',' <_list> | <term>
+    <tuple>      ::= '(' <_tuple> ')'
+      <_tuple>     ::= <term> ';' <_tuple> | <term>
+  <flow>       ::= <cell> '=>' <flow> | <cell>
+<func>       ::= <label> <arg> '=' <func_body> | <arg> '=' <func_body>
+  <label>      ::= <f_ref> ':' 
+  <arg>        ::= <identifier> '(' <type> ')' ',' <arg> | <identifier> '(' <type> ')'
+  /* Check if the first expression is a bool */
+  <func_body>  ::= <exp> '|' <exp> <func_body> | <exp> '|' <exp> | '|' <exp> | <exp>
+  <type>       ::= <identifier>'<' <type> '>' | <f_type> | <identifier>
+  <f_type>     ::= <type> '->' <f_type> | <type> '->' <type>
+  <f_ref>      ::= '~'<identifier> 
+<identifier>   ::= <letter> <natural> <identifier> | <letter> <identifier> | <letter>
+<var>          ::= <identifier>
+<io>         ::= <io_in> | <io_out>
+  <io_in>      ::= <path> '~>' <type> | '~>' <type>
+  <io_out>     ::= <path> '<~' <type> | '<~' <type>
+  <path>       ::= <str>
