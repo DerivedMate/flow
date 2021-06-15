@@ -4,6 +4,7 @@ import Control.Applicative
 import Control.Monad
 import Data.List
 import Data.Char
+import System.IO
 import Text.Pretty.Simple (pPrint)
 
 {--------------------------------:
@@ -25,7 +26,7 @@ data FMod
   | MMap
   | MKeep
   | MGen
-  deriving Show
+  deriving ( Show, Eq )
 
 data Type 
   = TInt
@@ -34,7 +35,7 @@ data Type
   | TBool
   | TList Type
   | TFunc Type Type
-  deriving Show
+  deriving ( Show, Eq )
 
 data Operator 
   = OpAdd
@@ -51,24 +52,24 @@ data Operator
   | OpLtEq
   | OpEq
   | OpNeq
-  deriving Show
+  deriving ( Show, Eq )
 
 data Arg 
   = Arg String Type
-  deriving Show
+  deriving ( Show, Eq )
 
 data FuncExp 
   = Cond Exp Exp FuncExp
   | Single Exp 
   | FNil
-  deriving Show
+  deriving ( Show, Eq )
 
 data IoExp
   = IoStdIn Type
   | IoStdOut Type
   | IoFileIn String Type
   | IoFileOut String Type
-  deriving Show
+  deriving ( Show, Eq )
 
 data Exp 
   = Nil
@@ -82,13 +83,12 @@ data Exp
   | Var String 
   | Label String
   | Cell FMod Exp
-  | Func (Maybe String) [Arg] FuncExp {- FuncBody -}
+  | Func (Maybe String) [Arg] FuncExp
   | Io IoExp
   | Flow Exp Exp
   | FRef String
   | Program Exp Exp
-
-  deriving Show
+  deriving ( Show, Eq )
 
 
 
@@ -118,19 +118,25 @@ bool = LBool . read <$> (string "True" <|> string "False")
 str :: Parser Exp
 str = LString <$> enclosed (char '`') (char '`') (many (token beginning))
   where 
-    beginning = space <|> letter 
-            <|> nat   <|> mark
-            <|> pre isPunctuation
+    beginning = pre (\c -> isLatin1 c && c `notElem` "`")
 
 list :: Parser Exp
-list = LList <$> enclosed (token (char '[')) (token (char ']')) (sepBy (token (char ',')) term )
+list = LList <$> enclosed 
+                  (token (char '[')) 
+                  (token (char ']')) 
+                    (sepBy (token (char ',')) 
+                      term 
+                    )
+     <|> string "[]" *> pure (LList [])
 
 tuple :: Parser Exp
-tuple = LTuple 
-    <$> enclosed 
-          (token (char '(')) 
-          (token (char ')')) 
-          (sepBy (char ';') term )
+tuple = LTuple <$> enclosed 
+                    (token (char '(')) 
+                    (token (char ')')) 
+                    (sepBy (token (char ';'))
+                     term 
+                    )
+      <|> string "()" *> pure (LTuple [])
 
 
 
@@ -168,33 +174,33 @@ program = (Program <$> flow <*> program)
        <|> flow
 
 expr :: Parser Exp
-expr = binaryOp <|> flow <|> term <|> fRef
+expr = term <|> flow
 
 flow :: Parser Exp 
 flow = (Flow <$> token cell <* token (string "=>") <*> token flow)
-    <|> cell
+    <|> (Flow <$> cell <*> pure Nil)
 
 cell :: Parser Exp
 cell =  
-    (Cell MNone <$> token fRef)
+    (token fRef)
     <|> ( Cell <$> (fMod <|> pure MNone) 
                <*> enclosed 
                      (token (char '{')) 
                      (token (char '}')) 
-                     (func <|> expr)
+                     (func <|> token fRef <|> expr)
         )
 
 term :: Parser Exp
 term = enclosed (char '(') (char ')') (token term)
-     <|> binaryOp 
-     <|> token var
      <|> io
      <|> literal
+     <|> binaryOp 
+     <|> token var
 
 identifier :: Parser String
 identifier = do
    a0 <- pre isLetter 
-   as <- some (pOr [isLetter, isDigit])
+   as <- some (pOr [isLetter, isDigit, (`elem` "_")])
    return (a0 : as)
   <|> some (pre isLetter)
 
@@ -213,7 +219,7 @@ fMod =  (MMap  <$ token ( string "map"  ))
 func :: Parser Exp
 func = 
   Func <$> optional (token label)
-       <*> token args
+       <*> (token args <|> pure [])
        <*  token (char '=')
        <*> token fBody
 
@@ -328,3 +334,20 @@ printTree (Just (a, _)) = aux 0 a
 
 printAST :: Maybe (Exp, String) -> IO ()
 printAST (Just (a, _)) = pPrint a
+
+parseString :: String -> Maybe (Exp, String)
+parseString input = fixRootProgram $ runParser program input 
+
+parseFile :: String -> IO (Maybe (Exp, String))
+parseFile src = do
+  f <- openFile src ReadMode
+  parseString <$> hGetContents f
+
+
+fixRootProgram :: Maybe (Exp, String) -> Maybe (Exp, String)
+fixRootProgram p@(Just ((Program _ _), _)) 
+  = p
+fixRootProgram (Just (p, r)) 
+  = Just (Program p Nil, r)
+fixRootProgram a 
+  = a

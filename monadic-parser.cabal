@@ -53,12 +53,14 @@ test-suite monadic-parser-test
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   other-modules:
+      SSyntax
       Paths_monadic_parser
   hs-source-dirs:
       test
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      base >=4.7 && <5
+      HUnit
+    , base >=4.7 && <5
     , monadic-parser
     , pretty-simple >=4.0.0.0
   default-language: Haskell2010

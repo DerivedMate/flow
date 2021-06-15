@@ -1,2 +1,9 @@
-main :: IO ()
-main = putStrLn "Test suite not yet implemented"
+module Main where
+
+import Test.HUnit
+import SSyntax
+
+
+main :: IO Counts
+main = do runTestTT syntaxTests
+

@@ -62,7 +62,7 @@ pOr predicates = P aux
 
 
 space :: Parser Char
-space = pre isSeparator
+space = pre isSeparator <|> pre isSpace
 
 ss :: Parser String
 ss = many space

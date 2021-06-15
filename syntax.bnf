@@ -9,9 +9,9 @@
                                       ;  continue (bool)
                                       )# } -> [b] */
                 /*  _       a   -> { a -> b }       -> b   */
-<exp>        ::= <binary_op> | <flow> | <term> | <f_ref>
+<exp>        ::= <flow> | <term> 
   <binary_op>  ::= <operator> <term> <term>
-    <term>       ::= <binary_op> | <var> | <io> | <literal>
+    <term>       ::= <io> | <literal> | <binary_op> | <var>
     <operator>   ::= '+' | '-' | '*' | '/' | '^' | '&&' | '||' | '%'
     <literal>    ::= <str> | <list> | <tuple> | <int> | <float> | <bool>
     <int>        ::= '+' <natural> | '-' <natural> | <natural>
@@ -19,18 +19,15 @@
     <natural>    ::= '0' | '1' | '2' | ... | '9'
     <bool>       ::= 'True' | 'False'
     <str>        ::= '`' <_str> '`'
-      <_str>       ::= <space> <_str> | <letter> <_str> | <natural> <_str> | <mark> <_str>
-                       <space>        | <letter> <_str> | <natural>        | <mark> 
-    <mark>       ::= '@' | '/' | '$' | '!' | '#' | '%' | '^' | '&' | '*' | '(' | ')' |
-                     '{' | '}' | '[' | ']' | ':' | ';' | "'" | '|' | ',' | '.' | '?'
+      <_str>       ::= <@Latin1 - '`'> <_str> | <@Latin1 - '`'>
     <space>      ::=  ' ' | '\t' | '\n' | '\r' 
     <letter>     ::= 'a' | 'b' | 'c' | ... | 'z' | 'A' | 'B' | ... | 'Z'
-    <list>       ::= '[' <_list> ']'
+    <list>       ::= '[' <_list> ']' | '[]'
       <_list>      ::= <term> ',' <_list> | <term>
-    <tuple>      ::= '(' <_tuple> ')'
+    <tuple>      ::= '(' <_tuple> ')' | '()'
       <_tuple>     ::= <term> ';' <_tuple> | <term>
   <flow>       ::= <cell> '=>' <flow> | <cell>
-<func>       ::= <label> <arg> '=' <func_body> | <arg> '=' <func_body>
+<func>       ::= <label> <arg> '=' <func_body> | <arg> '=' <func_body> | '=' <func_body>
   <label>      ::= <f_ref> ':' 
   <arg>        ::= <identifier> '(' <type> ')' ',' <arg> | <identifier> '(' <type> ')'
   /* Check if the first expression is a bool */
