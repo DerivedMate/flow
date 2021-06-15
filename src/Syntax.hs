@@ -171,7 +171,7 @@ pType = _pFunc <|> simple
 
 program :: Parser Exp
 program = (Program <$> flow <*> program)
-       <|> flow
+       <|> token flow
 
 expr :: Parser Exp
 expr = term <|> flow
@@ -321,16 +321,6 @@ binaryOp =
 {--------------------------------:
     Helpers
 :--------------------------------}
-
-printTree :: Maybe (Exp, String) -> IO ()
-printTree (Just (a, _)) = aux 0 a
-  where
-    aux :: Int -> Exp -> IO ()
-    aux indent (BinOp op a b) = 
-      putStrLn (replicate (indent * 2) ' ' <> "Op: " <> show op)
-      >> aux (indent + 1) a
-      >> aux (indent + 1) b
-    aux indent a = putStrLn $ replicate (indent * 2) ' ' <> show a
 
 printAST :: Maybe (Exp, String) -> IO ()
 printAST (Just (a, _)) = pPrint a

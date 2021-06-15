@@ -1,0 +1,14 @@
+{ ~> Int } => gen { ~num_gen } => ~foobar => { <~ Str }
+{ ~num_gen: n(Int) = 
+  > 1 n | ( - n 1 ; n ; True  )
+        | ( 0     ; 1 ; False )
+}
+{ ~foobar: n(Int) = {n} => ~foo => ~bar }
+{ ~foo: n(Int) =
+  == 0 % n 3 | ( `foo` ; n )
+             | ( ``    ; n )
+}
+{ ~bar: acc(Str), n(Int) =
+  == 0 % n 5 | + acc `bar`
+             | acc
+}
