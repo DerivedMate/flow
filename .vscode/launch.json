@@ -5,20 +5,6 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Deno: Run",
-      "request": "launch",
-      "type": "pwa-node",
-      "program": "${file}",
-      "cwd": "${workspaceFolder}",
-      "runtimeExecutable": "deno",
-      "runtimeArgs": [
-        "run",
-        "--inspect",
-        "--allow-all"
-      ],
-      "attachSimplePort": 9229
-    },
-    {
       "name": "Launch Program",
       "program": "${file}",
       "request": "launch",
@@ -27,6 +13,20 @@
       ],
       "type": "pwa-node",
       "runtimeExecutable": "/home/tomasz/.nvm/versions/node/v14.3.0/bin/node"
+    },
+    {
+      "name": "Deno run",
+      "type": "pwa-node",
+      "request": "launch",
+      "program": "${workspaceFolder}/trans/js/base.js",
+      "cwd": "${workspaceFolder}",
+      "runtimeExecutable": "deno",
+      "runtimeArgs": [
+        "run",
+        "--inspect=127.0.0.1:9229",
+        "--allow-all"
+      ],
+      "attachSimplePort": 9229
     }
   ]
 }
