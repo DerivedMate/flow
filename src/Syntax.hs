@@ -73,21 +73,21 @@ data IoExp
 
 data Exp 
   = Nil
-  | BinOp Operator Exp Exp
-  | LInt Int
-  | LFloat Double
-  | LBool Bool
-  | LString String
+  | BinOp Operator Exp Exp -- #
+  | LInt Int -- #
+  | LFloat Double -- #
+  | LBool Bool -- #
+  | LString String -- #
   | LList [Exp]
   | LTuple [Exp]
-  | Var String 
+  | Var String -- #
   | Label String
-  | Cell FMod Exp
+  | Cell FMod Exp -- #
   | Func (Maybe String) [Arg] FuncExp
-  | Io IoExp
-  | Flow Exp Exp
+  | Io IoExp -- #
+  | Flow Exp Exp -- #
   | FRef String
-  | Program Exp Exp
+  | Program Exp Exp -- #
   deriving ( Show, Eq )
 
 
