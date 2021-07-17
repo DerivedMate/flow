@@ -116,7 +116,7 @@ bool :: Parser Exp
 bool = LBool . read <$> (string "True" <|> string "False")
 
 str :: Parser Exp
-str = LString <$> enclosed (char '`') (char '`') (many (token beginning))
+str = LString <$> enclosed (char '`') (char '`') (many beginning)
   where 
     beginning = pre (\c -> isLatin1 c && c `notElem` "`")
 
