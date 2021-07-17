@@ -1,0 +1,11 @@
+{ ~fact: n(Int), acc(Int) =
+    >= n 1 | {(- n 1; * n acc)} => ~fact
+           | {acc}
+}
+
+{ ~iter: n(Int) =
+    > n 0 | {((n; 1); - n 1; True )}
+          | {(n; n    ; False)}
+}
+
+{ ~> Int } => gen { ~iter } => { ~fact } => { <~ Int }

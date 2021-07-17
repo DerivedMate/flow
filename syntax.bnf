@@ -4,10 +4,10 @@
   <f_mod>     ::= 'map'  /* [a] -> { a -> b }       -> [b] */
                 | 'keep' /* [a] -> { a -> bool }    -> [a] */
                 | 'gen'  /*  a  -> { seed (a) = 
-                                      #( yield (b)
-                                      ;  next_seed (a)
-                                      ;  continue (bool)
-                                      )# } -> [b] */
+                                      ( yield (b)
+                                      ; next_seed (a)
+                                      ; continue (bool)
+                                      ) } -> [b] */
                 /*  _       a   -> { a -> b }       -> b   */
 <exp>        ::= <flow> | <term> 
   <binary_op>  ::= <operator> <term> <term>

@@ -298,10 +298,10 @@ operator = foldl1 (<|>) $ aux <$> ops
           , ( OpAnd, "&&")
           , ( OpOr, "||")
           , ( OpMod, "%")
-          , ( OpGt, ">")
           , ( OpGtEq, ">=")
-          , ( OpLt, "<")
+          , ( OpGt, ">")
           , ( OpLtEq, "<=")
+          , ( OpLt, "<")
           , ( OpEq, "==")
           , ( OpNeq, "/=")
           ]
