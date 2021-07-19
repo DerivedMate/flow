@@ -1,11 +1,14 @@
-{ ~fact: n(Int), acc(Int) =
-    >= n 1 | {(- n 1; * n acc)} => ~fact
-           | {acc}
-}
-
-{ ~iter: n(Int) =
-    > n 0 | {((n; 1); - n 1; True )}
-          | {(n; n    ; False)}
-}
-
-{ ~> Int } => gen { ~iter } => { ~fact } => { <~ Int }
+{ ~> Int } 
+      => gen { ~iter: a(Int) =
+                > a 0 | (a; - a 1; True )
+                      | (a; a    ; False)
+             }
+      => { a(Int) = 
+           {(a; 1)} => { ~fact: a(Int), b(Int) =
+                          >= a 1 | {(- a 1; * a b)} => ~fact
+                                 | b
+                       } 
+                    => { n(Int) = [a, n] }
+         }
+      => { <~ List<Int> } 
+      
