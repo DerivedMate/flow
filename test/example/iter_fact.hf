@@ -1,14 +1,18 @@
-{ ~> Int } 
-      => gen { ~iter: a(Int) =
-                > a 0 | (a; - a 1; True )
-                      | (a; a    ; False)
-             }
-      => { a(Int) = 
-           {(a; 1)} => { ~fact: a(Int), b(Int) =
-                          >= a 1 | {(- a 1; * a b)} => ~fact
-                                 | b
-                       } 
-                    => { n(Int) = [a, n] }
-         }
-      => { <~ List<Int> } 
+{ ~iter: a(Int) =
+   > a 0 | (a; - a 1; True )
+         | (a; a    ; False)
+}
+{ ~fact: a(Int), b(Int) =
+  >= a 1 | {(- a 1; * a b)} => ~fact
+         | b
+}
+
+   {`Input a number to factorialise: `}
+=> { <~ Str } => { ~> Int } 
+=> gen {~iter}
+=> { ~aux: n(Int) = 
+      {(n; 1)} => ~fact
+               => { m(Int) = [n, m] }
+   }
+=> { <~ List<Int> } 
       

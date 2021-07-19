@@ -104,20 +104,26 @@ cast TFloat a@(RTFloat _)   = a
 cast TString a@(RTString _) = a
 cast TBool a@(RTBool _)     = a
 cast (TList t) (RTList ls)  = RTList (map (cast t) ls)
+
 -- Int Cast
 cast TInt (RTFloat d)       = RTInt $ floor d
 cast TInt (RTString s)      = RTInt $ length s
 cast TInt (RTBool True)     = RTInt 1
 cast TInt (RTBool False)    = RTInt 0
+
 -- Float Cast
 cast TFloat (RTInt i)       = RTFloat $ fromIntegral i
 cast TFloat a               = let RTInt i = cast TInt a
                               in RTFloat (fromIntegral i)
-
+-- Truthiness
 cast TBool (RTInt a)        = RTBool (a /= 0)
 cast TBool (RTFloat f)      = RTBool (f /= 0.0)
 cast TBool (RTString s)     = RTBool (s /= "")
 cast TBool (RTList l)       = RTBool (not $ null l)
+
+-- String Cast
+cast TString a              = RTString (show a)
+
 
 cast t a                    =
     trace
@@ -156,6 +162,10 @@ fOfBop OpMul (RTFloat a) (RTFloat b) = RTFloat $ a * b
 -- Float x Int / Int x Float
 fOfBop op a@(RTFloat _) b@(RTInt _)    = fOfBop op a (cast TFloat b)
 fOfBop op a@(RTInt _)   b@(RTFloat _)  = fOfBop op a (cast TInt   b)
+
+-- Modulo
+fOfBop OpMod (RTInt a) (RTInt b)       = RTInt (a `mod` b)
+fOfBop OpMod a         b               = fOfBop OpMod (cast TInt a) (cast TInt b)
 
 -- String x String
 fOfBop OpAdd (RTString a) (RTString b) = RTString ( a <> b )
@@ -400,7 +410,7 @@ step node@(Func l args f_body) s = do
 step (FRef k) s = do
     guard ( funcExists k s )
     let f = funcFind k s
-        in correctLast (funcArgs f) <$> step f s
+        in step f s
 
 step self@(Flow a b) s = do
     r <- step a s

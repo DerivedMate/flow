@@ -1,5 +1,18 @@
-{ 4 } => { ~f: a(Int) = 
-            < a 5 | { * 2 a } => ~f => { b(Int) = - b a}
-                  | + 3 a
-         }
-      => { <~ Int }
+{~> Int} => gen 
+            {~range: n(Int) =
+                > n 0 | (n; - n 1; True )
+                      | (n; n    ; False)
+            }
+         => {~foo: n(Int) =
+                == 0 % n 3 | (`foo`; n)
+                           | (``   ; n)
+            }
+         => {~bar: acc(Str), n(Int) =
+                == 0 % n 5 | (+ acc `bar`; n)
+                           | (acc        ; n)
+            }
+         => {~check: acc(Str), n(Str) =
+                == `` acc | + (+ n `: `) n
+                          | + (+ n `: `) acc
+            }
+         => { <~ Str }

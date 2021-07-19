@@ -7,9 +7,16 @@ import           System.IO
 
 interactiveShell :: IO ()
 interactiveShell = do
-    putStrLn "Welcome to Flow!\n\t:q to close\n\t:ast <code> to print ast"
+    putStrLn ("Welcome to Flow!\n"
+                <> intercalate "\n"
+                    ((\p -> "\t" <> fst p <> " - " <> snd p) <$> options)
+             )
     loop
     where
+        options = [ (":q", "quit shell")
+                  , (":ast <code>", "print ast")
+                  , (":file <path>", "exec file")
+                  ]
         loop = do
             putStr "flow> "
             hFlush stdout
@@ -19,6 +26,8 @@ interactiveShell = do
             = return ()
             | Just rest <- stripPrefix ":ast" input
             = printAST (parseString rest) >> loop
+            | Just path <- stripPrefix ":file" input
+            = parseFile path >>= runFlow >> loop
             | otherwise
             = runFlow (parseString input) >> loop
 
