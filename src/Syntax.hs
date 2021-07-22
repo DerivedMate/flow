@@ -35,6 +35,7 @@ data Type
   | TBool
   | TList Type
   | TFunc Type Type
+  | TAny
   deriving ( Show, Eq )
 
 data Operator 
@@ -182,7 +183,7 @@ flow = (Flow <$> token cell <* token (string "=>") <*> token flow)
 
 cell :: Parser Exp
 cell =  
-    (token fRef)
+    token fRef
     <|> ( Cell <$> (fMod <|> pure MNone) 
                <*> enclosed 
                      (token (char '{')) 
@@ -212,9 +213,9 @@ identifier = do
 :--------------------------------}
 
 fMod :: Parser FMod
-fMod =  (MMap  <$ token ( string "map"  ))
-    <|> (MKeep <$ token ( string "keep" ))
-    <|> (MGen  <$ token ( string "gen"  ))
+fMod =  (MMap     <$ token ( string "map"     ))
+    <|> (MKeep    <$ token ( string "keep"    ))
+    <|> (MGen     <$ token ( string "gen"     ))
 
 func :: Parser Exp
 func = 
@@ -335,7 +336,7 @@ parseFile src = do
 
 
 fixRootProgram :: Maybe (Exp, String) -> Maybe (Exp, String)
-fixRootProgram p@(Just ((Program _ _), _)) 
+fixRootProgram p@(Just (Program _ _, _)) 
   = p
 fixRootProgram (Just (p, r)) 
   = Just (Program p Nil, r)

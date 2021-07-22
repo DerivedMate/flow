@@ -39,7 +39,7 @@ instance Show RTVal where
             <> intercalate ", "
                 (map show args)
     show RTNil        = "nil"
-    show a            = undefined
+    show (RTFunc a)   = show a
 
 instance Eq RTVal where
     RTNil           == RTNil = True
@@ -84,7 +84,12 @@ data Frame
 data State
     = State { stLast  :: RTVal
             , stStack :: [ Frame ]
-            } deriving (Show, Eq)
+            } deriving Eq
+
+instance Show State where
+    show (State last stack) =
+           "[Last]: "    <> show last
+        <> "\n[Stack]: " <> show stack
 
 data Datum
     = Datum { datumExp   :: Exp
@@ -124,11 +129,15 @@ cast TBool (RTList l)       = RTBool (not $ null l)
 -- String Cast
 cast TString a              = RTString (show a)
 
+cast (TFunc _ _) f@(RTFunc _) = f
+cast (TFunc _ _) a          = pTraceShowId a
 
 cast t a                    =
-    trace
-        ("Unmatched type cast: " <> show t <> " <- " <> show a)
-        a
+    error ( "Unmatched type cast: "
+            <> show a
+            <> " -> "
+            <> show t
+          )
 
 rtParse :: Type -> String -> RTVal
 rtParse TInt s   = RTInt (read s :: Int)
@@ -141,7 +150,11 @@ typeOfRt (RTFloat _)    = TFloat
 typeOfRt (RTString _)   = TString
 typeOfRt (RTBool _)     = TBool
 typeOfRt (RTList (l:_)) = TList (typeOfRt l)
-typeOfRt a              = TFunc TInt TInt
+typeOfRt r@(RTFunc (Cell _ (Func _ (a : args) _))) =
+    pTraceShow r $ foldr aux (TFunc (argType a) ) args TAny
+    where
+        aux a f = TFunc (f (argType a))
+
 
 -- Cast the latter to the type of the former
 unifyType :: RTVal -> RTVal -> RTVal
@@ -153,11 +166,13 @@ fOfBop OpAdd (RTInt a) (RTInt b) = RTInt $ a + b
 fOfBop OpSub (RTInt a) (RTInt b) = RTInt $ a - b
 fOfBop OpMul (RTInt a) (RTInt b) = RTInt $ a * b
 fOfBop OpDiv (RTInt a) (RTInt b) = RTFloat $ (fromIntegral a :: Double) / (fromIntegral b :: Double)
+fOfBop OpExp (RTInt a) (RTInt b) = RTFloat $ (fromIntegral a :: Double) ** (fromIntegral b :: Double)
 
 -- Float x Float
 fOfBop OpAdd (RTFloat a) (RTFloat b) = RTFloat $ a + b
 fOfBop OpSub (RTFloat a) (RTFloat b) = RTFloat $ a - b
 fOfBop OpMul (RTFloat a) (RTFloat b) = RTFloat $ a * b
+fOfBop OpExp (RTFloat a) (RTFloat b) = RTFloat $ a ** b
 
 -- Float x Int / Int x Float
 fOfBop op a@(RTFloat _) b@(RTInt _)    = fOfBop op a (cast TFloat b)
@@ -199,6 +214,7 @@ fOfBop op a b = fOfBop op a (unifyType a b)
 rtLength :: RTVal -> Int
 rtLength RTNil        = 0
 rtLength (RTTuple ts) = length ts
+rtLength (RTString s) = length s
 rtLength _            = 1
 
 {--------------------------------:
@@ -223,6 +239,9 @@ funcArgs e             = errorWithoutStackTrace ("call funcArgs of non-func: " <
 
 argName :: Arg -> String
 argName (Arg n _) = n
+
+argType :: Arg -> Type
+argType (Arg _ t) = t
 
 assignVars :: RTVal -> [Arg] -> [(String, RTVal)]
 assignVars (RTTuple ts) args = zipWith bindVar ts args
@@ -259,10 +278,11 @@ correctLast args ds = fmap aux ds
 :--------------------------------}
 
 deTuple :: RTVal -> [RTVal]
-deTuple (RTTuple a) = a
-deTuple RTNil       = []
-deTuple (RTList a)  = a
-deTuple a           = [a]
+deTuple (RTTuple a)  = a
+deTuple RTNil        = []
+deTuple (RTList a)   = a
+deTuple (RTString s) = map RTString [s]
+deTuple a            = [a]
 
 {--------------------------------:
     Main Line
@@ -294,12 +314,16 @@ step (LList ls) s =   step (LTuple ls) s
                 s {stLast = RTList (deTuple $ stLast s)}
             ]
 
-step (Var k) s = pure [ Datum Nil s { stLast = aux (frameVars `concatMap` stStack s) } ]
+step (Var k) s
+    | RTFunc f <- v
+    = pure [ Datum f s ]
+    | otherwise = pure [ Datum Nil s { stLast = v } ]
     where
-        aux []          = RTNil
-        aux ( (k', v) : ds )
+        v                   = findVar (frameVars `concatMap` stStack s)
+        findVar []          = RTNil
+        findVar ( (k', v) : ds )
             | k == k'   = v
-            | otherwise = aux ds
+            | otherwise = findVar ds
 
 {--------------------------------:
     Cells
@@ -341,14 +365,18 @@ step self@(Flow (Cell MGen a) b) s = do
         manageReturn (Datum _ s : ds) = matchResult (stLast s) <> ds
 
         matchResult :: RTVal -> [ Datum ]
-        matchResult (RTTuple r@[yield, next, RTBool do_emit])
+        matchResult (RTTuple [yield, next, RTBool do_emit])
             | do_emit    =
                 [ Datum b    (s { stLast = yield })
                 , Datum self (s { stLast = next  })
                 ]
             | otherwise  = []
+        matchResult (RTTuple [yield, next]) =
+            matchResult (RTTuple [yield, next, RTBool True])
+        matchResult (RTTuple []) =
+            []
         matchResult r =
-            traceShow r $ matchResult (RTTuple [r, r, RTBool True])
+            matchResult (RTTuple [r, r, RTBool True])
 
 {--------------------------------:
     Operations
@@ -380,7 +408,7 @@ step node@(Func l args f_body) s = do
                 then
                     let (appliedArgs, leftArgs) = splitAt (rtLength (stLast s)) args
                     in ( RTFunc (Func l leftArgs f_body)
-                       , pTraceShow (l, stLast s, appliedArgs) $ assignVars (stLast s) appliedArgs
+                       , assignVars (stLast s) appliedArgs
                        , False
                        )
                 else
@@ -389,10 +417,10 @@ step node@(Func l args f_body) s = do
         s' = State { stLast= last
                    , stStack= f' : stStack s
                    }
-        in 
-            if doRun 
+        in
+            if doRun
                 then stepFExp f_body s'
-                else pure [Datum Nil s']
+                else pure [ Datum Nil s' ]
     where
         stepFExp :: FuncExp -> State -> IO [ Datum ]
         stepFExp FNil s              = pure [ Datum Nil s ]
@@ -402,18 +430,25 @@ step node@(Func l args f_body) s = do
             case (cast TBool . stLast . datumState) rc of
                 RTBool True  -> step a s
                 RTBool False -> stepFExp b s
+                r            -> error
+                    (  "Undefined boolean cast in func conditional:"
+                         <> "\n[Cast]: "      <> show r
+                         <> "\n[State]: "     <> show s
+                         <> "\n[Condition]: " <> show c
+                    )
 
 step (FRef k) s = do
-    guard ( funcExists k s )
-    let f = funcFind k s
-        in step f s
+    if funcExists k s
+    then step f s
+    else ioError $ userError ("Undefined function '" <> k <> "'. State:\n" <> show s)
+    where f = funcFind k s
 
 step self@(Flow a b) s = do
     r <- step a s
     case r of
         ( Datum Nil s' : ds ) -> pure ( Datum b s' : ds )
         ( Datum a'  s' : ds ) -> pure ( Datum (Flow a' b) s' : ds )
-        rs                    -> errorWithoutStackTrace
+        rs                    -> error
             ("Empty Flow Return:\n[Node]: "  <> show a
                             <> "\n[State]: " <> show s
             )
@@ -423,7 +458,7 @@ step self@(Program a b) s = do
     case r of
         ( Datum Nil s' : ds ) -> pure ( Datum b (s' {stLast = RTNil}) : ds )
         ( Datum a'  s' : ds ) -> pure ( Datum (Program a' b) s' : ds )
-        rs                    -> errorWithoutStackTrace
+        rs                    -> error
             ("Empty Flow Return:\n[Node]: "  <> show a
                             <> "\n[State]: " <> show s
             )
@@ -451,14 +486,15 @@ check l s d                      =
 
             in trace
                 (  "\n" <> show l <> "\n"
-                <> "; {Stack}: " <> intercalate ", " (show <$> vs) <> "\n"
-                <> "{Last}: " <> show (stLast st) <> "\n"
+                <> "{Stack}: "     <> intercalate ", " (show <$> vs) <> "\n"
+                <> "{Last}: "      <> show (stLast st) <> "\n"
                 <> "{Prev Last}: " <> show (stLast s)
                 )
                 d
 
 
 runFlow :: Maybe (Exp, a0) -> IO ()
+runFlow Nothing         = ioError $ userError "Filed to compile the source"
 runFlow (Just (ast, _)) = step ast (State RTNil []) >>= aux >> pure ()
     where
         aux []           = pure ()
@@ -466,4 +502,3 @@ runFlow (Just (ast, _)) = step ast (State RTNil []) >>= aux >> pure ()
                          >>= aux . concat
         iter (Datum e s) = step e s
         help ds = trace ("\n" <> intercalate ", " (fmap show ds)) ds
--- . (\ds -> trace ("\n" <> intercalate ", " (fmap show ds)) ds)
