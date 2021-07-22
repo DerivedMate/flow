@@ -252,13 +252,6 @@ correctLast args ds = fmap aux ds
             where
                 stack' = deleteVars (fmap argName args) (stStack $ datumState d)
 
-{-
-    Keep function definitions (sequential hoisting),
-    ensure no reduction to empty stack
--}
-popFrame :: State -> State
-popFrame s = s{ stStack = drop 1 $ stStack s }
-
 
 
 {--------------------------------:
@@ -382,21 +375,24 @@ step node@(Func l args f_body) s = do
         fns = maybe [] (\k -> [(k, Cell MNone  node) | not ( funcExists k s )]) l
 
         -- Check for partial application
-        (last, vars) =
+        (last, vars, doRun) =
             if length args > rtLength (stLast s)
                 then
                     let (appliedArgs, leftArgs) = splitAt (rtLength (stLast s)) args
                     in ( RTFunc (Func l leftArgs f_body)
-                       , assignVars (stLast s) appliedArgs
+                       , pTraceShow (l, stLast s, appliedArgs) $ assignVars (stLast s) appliedArgs
+                       , False
                        )
                 else
-                    (RTNil, assignVars (stLast s) args)
-        f' = Frame {frameVars=vars, frameFns=fns}
+                    (RTNil, assignVars (stLast s) args, True)
+        f' = Frame { frameVars=vars, frameFns=fns }
         s' = State { stLast= last
                    , stStack= f' : stStack s
                    }
-        in
-            do stepFExp f_body s'
+        in 
+            if doRun 
+                then stepFExp f_body s'
+                else pure [Datum Nil s']
     where
         stepFExp :: FuncExp -> State -> IO [ Datum ]
         stepFExp FNil s              = pure [ Datum Nil s ]
@@ -422,9 +418,6 @@ step self@(Flow a b) s = do
                             <> "\n[State]: " <> show s
             )
 
-    where
-        hasAddedFrame s s' = stStack s /= stStack s'
-
 step self@(Program a b) s = do
     r <- step a s
     case r of
@@ -448,7 +441,7 @@ step (Io (IoStdOut t)) s = do
             print (cast t l)
             >> pure [Datum Nil (s { stLast = RTNil })]
 
-step _ _ = undefined 
+step _ _ = undefined
 
 check :: Show a => a -> State -> [Datum] -> [Datum]
 check l s d                      =

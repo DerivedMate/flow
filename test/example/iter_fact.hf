@@ -6,13 +6,16 @@
   >= a 1 | {(- a 1; * a b)} => ~fact
          | b
 }
+{ ~aux: n(Int) = 
+   {(n; 1)} => ~fact
+            => { m(Int) = [n, m] }
+}
 
    {`Input a number to factorialise: `}
-=> { <~ Str } => { ~> Int } 
+=> { <~ Str } 
+
+   { ~> Int } 
 => gen {~iter}
-=> { ~aux: n(Int) = 
-      {(n; 1)} => ~fact
-               => { m(Int) = [n, m] }
-   }
+=> ~aux
 => { <~ List<Int> } 
       
