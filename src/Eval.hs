@@ -1,6 +1,7 @@
 module Eval where
 import           Control.Applicative
 import           Control.Monad
+import           Data.Char
 import           Data.Function
 import           Data.List
 import           Data.Maybe
@@ -23,7 +24,7 @@ data RTVal
 instance Show RTVal where
     show (RTInt a)    = show a
     show (RTFloat a)  = show a
-    show (RTString a) = a
+    show (RTString a) = "`" <> a <> "`"
     show (RTBool a)   = show a
     show (RTList l)   = "["
                       <> intercalate ", "
@@ -108,7 +109,10 @@ cast (TList t) (RTList ls)  = RTList (map (cast t) ls)
 
 -- Int Cast
 cast TInt (RTFloat d)       = RTInt $ floor d
-cast TInt (RTString s)      = RTInt $ length s
+cast TInt (RTString s)
+    | all isNumber s = RTInt (read s)
+    | otherwise      = RTInt (length s)
+
 cast TInt (RTBool True)     = RTInt 1
 cast TInt (RTBool False)    = RTInt 0
 
@@ -125,7 +129,13 @@ cast TBool (RTList l)       = RTBool (not $ null l)
 -- String Cast
 cast TString a              = RTString (show a)
 
-cast (TFunc _ _) f@(RTFunc _) = f
+cast (TFunc t ts) (RTFunc (Func l args e)) =
+    RTFunc ( Cell MNone (Func l args' e) )
+    where
+        args'                      = zipWith aux (tFuncTypes ts [t]) args
+        tFuncTypes (TFunc t f) acc = tFuncTypes f (t:acc)
+        tFuncTypes t acc           = t:acc
+        aux t (Arg n _)            = Arg n t
 
 cast t a                    =
     error ( "Unmatched type cast: "
@@ -278,7 +288,7 @@ deTuple :: RTVal -> [ RTVal ]
 deTuple (RTTuple a)  = a
 deTuple RTNil        = []
 deTuple (RTList a)   = a
-deTuple (RTString s) = map (RTString . (:[])) s 
+deTuple (RTString s) = map (RTString . (:[])) s
 deTuple a            = [a]
 
 {--------------------------------:
@@ -397,7 +407,7 @@ step (BinOp op a b) s = do
 step node@(Func l args f_body) s = do
     -- Define the function if is labeled
     let
-        fns = maybe [] (\k -> [(k, RTFunc (Cell MNone  node)) | not ( funcExists k s )]) l
+        fns = maybe [] (\k -> [(k, RTFunc node) | not ( funcExists k s )]) l
 
         -- Check for partial application
         (last, vars, doRun) =
@@ -476,18 +486,18 @@ step (Io (IoStdOut t)) s = do
 step _ _ = undefined
 
 check :: Show a => a -> State -> [ Datum ] -> [ Datum ]
-check l s d                      =
-            let
-                st = datumState $ head d
-                vs = stStack st
+check l s d =
+    let
+        st = datumState $ head d
+        vs = stStack st
 
-            in trace
-                (  "\n" <> show l <> "\n"
-                <> "{Stack}: "     <> intercalate ", " (show <$> vs) <> "\n"
-                <> "{Last}: "      <> show (stLast st) <> "\n"
-                <> "{Prev Last}: " <> show (stLast s)
-                )
-                d
+    in trace
+        (  "\n" <> show l <> "\n"
+        <> "{Stack}: "     <> intercalate ", " (show <$> vs) <> "\n"
+        <> "{Last}: "      <> show (stLast st) <> "\n"
+        <> "{Prev Last}: " <> show (stLast s)
+        )
+        d
 
 
 runFlow :: Maybe (Exp, a0) -> IO ()
