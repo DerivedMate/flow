@@ -76,10 +76,7 @@ instance Ord RTVal where
     a@(RTFunc aa)   <= b = False
     RTNil           <= b = True
 
-data Frame
-    = Frame { frameVars :: AssocMap String RTVal
-            , frameFns  :: AssocMap String Exp    -- Cell pointers
-            } deriving (Show, Eq)
+type Frame = AssocMap String RTVal
 
 data State
     = State { stLast  :: RTVal
@@ -94,8 +91,7 @@ instance Show State where
 data Datum
     = Datum { datumExp   :: Exp
             , datumState :: State
-            }
-    deriving (Show, Eq)
+            } deriving (Show, Eq)
 
 
 {--------------------------------:
@@ -130,7 +126,6 @@ cast TBool (RTList l)       = RTBool (not $ null l)
 cast TString a              = RTString (show a)
 
 cast (TFunc _ _) f@(RTFunc _) = f
-cast (TFunc _ _) a          = pTraceShowId a
 
 cast t a                    =
     error ( "Unmatched type cast: "
@@ -151,7 +146,7 @@ typeOfRt (RTString _)   = TString
 typeOfRt (RTBool _)     = TBool
 typeOfRt (RTList (l:_)) = TList (typeOfRt l)
 typeOfRt r@(RTFunc (Cell _ (Func _ (a : args) _))) =
-    pTraceShow r $ foldr aux (TFunc (argType a) ) args TAny
+    foldr aux (TFunc (argType a) ) args TAny
     where
         aux a f = TFunc (f (argType a))
 
@@ -222,20 +217,22 @@ rtLength _            = 1
 :--------------------------------}
 
 funcExists :: String -> State -> Bool
-funcExists k s = assocExists ( frameFns `concatMap` stStack s ) k
+funcExists k s = assocExists ( concat $ stStack s ) k
 
 funcFind :: String -> State -> Exp
-funcFind k s = aux ( frameFns `concatMap` stStack s )
+funcFind k s = toExp $ aux ( concat $ stStack s )
     where
-        aux []          = Nil
+        toExp (RTFunc f) = f
+        toExp _          = Nil
+        aux []           = RTNil
         aux ( (k', v) : ds )
             | k == k'   = v
             | otherwise = aux ds
 
-funcArgs :: Exp -> [Arg]
+funcArgs :: Exp -> [ Arg ]
 funcArgs (Func _ as _) = as
 funcArgs (Cell _ f)    = funcArgs f
-funcArgs e             = errorWithoutStackTrace ("call funcArgs of non-func: " <> show e)
+funcArgs e             = error ("call funcArgs of non-func: " <> show e)
 
 argName :: Arg -> String
 argName (Arg n _) = n
@@ -243,31 +240,31 @@ argName (Arg n _) = n
 argType :: Arg -> Type
 argType (Arg _ t) = t
 
-assignVars :: RTVal -> [Arg] -> [(String, RTVal)]
+assignVars :: RTVal -> [ Arg ] -> [ (String, RTVal) ]
 assignVars (RTTuple ts) args = zipWith bindVar ts args
 assignVars v          (a: _) = [bindVar v a]
 assignVars _             []  = []
 bindVar v (Arg k t)          = (k, cast t v)
 
-deleteVars :: [String] -> [Frame] -> [Frame]
+deleteVars :: [ String ] -> [ Frame ] -> [ Frame ]
 deleteVars [] frames      = frames
 deleteVars _ []           = []
 deleteVars (v:vs) (f:fs)
     | isEmpty f' = deleteVars vs fs
     | otherwise  = deleteVars vs (f':fs)
     where
-        f'   = Frame vrs' (frameFns f)
-        vrs' = deleteBy ((==) `on` fst) (v, RTNil) (frameVars f)
-        isEmpty (Frame [] []) = True
-        isEmpty _             = False
+        f'   = vrs'
+        vrs' = deleteBy ((==) `on` fst) (v, RTNil) f
+        isEmpty [] = True
+        isEmpty _  = False
 
-correctLast :: [Arg] -> [Datum] -> [Datum]
+correctLast :: [ Arg ] -> [ Datum ] -> [ Datum ]
 correctLast args [] = []
 correctLast args ds = fmap aux ds
     where
-        aux d  = d { datumState=
+        aux d  = d { datumState =
                     (datumState d) { stStack = stack' }
-                    }
+                   }
             where
                 stack' = deleteVars (fmap argName args) (stStack $ datumState d)
 
@@ -277,18 +274,18 @@ correctLast args ds = fmap aux ds
     Tuple Helpers
 :--------------------------------}
 
-deTuple :: RTVal -> [RTVal]
+deTuple :: RTVal -> [ RTVal ]
 deTuple (RTTuple a)  = a
 deTuple RTNil        = []
 deTuple (RTList a)   = a
-deTuple (RTString s) = map RTString [s]
+deTuple (RTString s) = map (RTString . (:[])) s 
 deTuple a            = [a]
 
 {--------------------------------:
     Main Line
 :--------------------------------}
 
-step :: Exp -> State -> IO [Datum]
+step :: Exp -> State -> IO [ Datum ]
 step Nil _ = pure []
 
 step (LInt a) s    = pure [Datum Nil (s { stLast = RTInt a })]
@@ -319,7 +316,7 @@ step (Var k) s
     = pure [ Datum f s ]
     | otherwise = pure [ Datum Nil s { stLast = v } ]
     where
-        v                   = findVar (frameVars `concatMap` stStack s)
+        v                   = findVar (concat $ stStack s)
         findVar []          = RTNil
         findVar ( (k', v) : ds )
             | k == k'   = v
@@ -341,7 +338,7 @@ step (Cell MMap a) s = (:[]) . foldl1 aux . concat <$> mapM (step a) ss0
         ss0 = (\a -> State a (stStack s)) <$> prepLast s
 
 step (Cell MKeep a) s =   (:[])
-                      .   (\ls -> Datum Nil (s {stLast=RTList ls}))
+                      .   (\ls -> Datum Nil (s {stLast = RTList ls}))
                       <$> mLasts'
     where
         mLasts'                    =   map fst
@@ -400,7 +397,7 @@ step (BinOp op a b) s = do
 step node@(Func l args f_body) s = do
     -- Define the function if is labeled
     let
-        fns = maybe [] (\k -> [(k, Cell MNone  node) | not ( funcExists k s )]) l
+        fns = maybe [] (\k -> [(k, RTFunc (Cell MNone  node)) | not ( funcExists k s )]) l
 
         -- Check for partial application
         (last, vars, doRun) =
@@ -413,7 +410,7 @@ step node@(Func l args f_body) s = do
                        )
                 else
                     (RTNil, assignVars (stLast s) args, True)
-        f' = Frame { frameVars=vars, frameFns=fns }
+        f' = vars `union` fns
         s' = State { stLast= last
                    , stStack= f' : stStack s
                    }
@@ -440,7 +437,7 @@ step node@(Func l args f_body) s = do
 step (FRef k) s = do
     if funcExists k s
     then step f s
-    else ioError $ userError ("Undefined function '" <> k <> "'. State:\n" <> show s)
+    else error ("Undefined function '" <> k <> "'. State:\n" <> show s)
     where f = funcFind k s
 
 step self@(Flow a b) s = do
@@ -456,7 +453,7 @@ step self@(Flow a b) s = do
 step self@(Program a b) s = do
     r <- step a s
     case r of
-        ( Datum Nil s' : ds ) -> pure ( Datum b (s' {stLast = RTNil}) : ds )
+        ( Datum Nil s' : ds ) -> pure ( Datum b (s' { stLast = RTNil }) : ds )
         ( Datum a'  s' : ds ) -> pure ( Datum (Program a' b) s' : ds )
         rs                    -> error
             ("Empty Flow Return:\n[Node]: "  <> show a
@@ -478,11 +475,11 @@ step (Io (IoStdOut t)) s = do
 
 step _ _ = undefined
 
-check :: Show a => a -> State -> [Datum] -> [Datum]
+check :: Show a => a -> State -> [ Datum ] -> [ Datum ]
 check l s d                      =
             let
                 st = datumState $ head d
-                vs = frameVars <$> stStack st
+                vs = stStack st
 
             in trace
                 (  "\n" <> show l <> "\n"
@@ -494,7 +491,7 @@ check l s d                      =
 
 
 runFlow :: Maybe (Exp, a0) -> IO ()
-runFlow Nothing         = ioError $ userError "Filed to compile the source"
+runFlow Nothing         = error "Filed to compile the source"
 runFlow (Just (ast, _)) = step ast (State RTNil []) >>= aux >> pure ()
     where
         aux []           = pure ()
