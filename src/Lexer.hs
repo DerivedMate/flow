@@ -65,7 +65,7 @@ space :: Parser Char
 space = pre isSeparator <|> pre isSpace
 
 ss :: Parser String
-ss = many space
+ss = many space 
 
 nat :: Parser Char
 nat = pre isDigit

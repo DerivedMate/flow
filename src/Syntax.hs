@@ -1,11 +1,12 @@
 module Syntax where
-import Lexer
-import Control.Applicative
-import Control.Monad
-import Data.List
-import Data.Char
-import System.IO
-import Text.Pretty.Simple (pPrint)
+import           Control.Applicative
+import           Control.Monad
+import           Data.Char
+import           Data.List
+import           Data.Maybe
+import           Lexer
+import           System.IO
+import           Text.Pretty.Simple  (pPrint)
 
 {--------------------------------:
     Examples
@@ -13,22 +14,23 @@ import Text.Pretty.Simple (pPrint)
 {----:
   Factorial:
 
-  {(~> Int; 1)} 
-  => { ~fact: a (Int), b (Int) = 
-        > a 1 | {(- a 1 ; * a b)} => ~fact 
-              | { b } 
-     } 
+  {(~> Int; 1)}
+  => { ~fact: a (Int), b (Int) =
+        > a 1 | {(- a 1 ; * a b)} => ~fact
+              | { b }
+     }
   => {<~ Int}
 :----}
 
-data FMod 
+data FMod
   = MNone
   | MMap
   | MKeep
   | MGen
+  | MFold
   deriving ( Show, Eq )
 
-data Type 
+data Type
   = TInt
   | TFloat
   | TString
@@ -38,7 +40,7 @@ data Type
   | TAny
   deriving ( Show, Eq )
 
-data Operator 
+data Operator
   = OpAdd
   | OpSub
   | OpMul
@@ -55,13 +57,13 @@ data Operator
   | OpNeq
   deriving ( Show, Eq )
 
-data Arg 
+data Arg
   = Arg String Type
   deriving ( Show, Eq )
 
-data FuncExp 
+data FuncExp
   = Cond Exp Exp FuncExp
-  | Single Exp 
+  | Single Exp
   | FNil
   deriving ( Show, Eq )
 
@@ -72,23 +74,23 @@ data IoExp
   | IoFileOut String Type
   deriving ( Show, Eq )
 
-data Exp 
+data Exp
   = Nil
-  | BinOp Operator Exp Exp -- #
-  | LInt Int -- #
-  | LFloat Double -- #
-  | LBool Bool -- #
-  | LString String -- #
+  | BinOp Operator Exp Exp
+  | LInt Int
+  | LFloat Double
+  | LBool Bool
+  | LString String
   | LList [Exp]
   | LTuple [Exp]
-  | Var String -- #
+  | Var String
   | Label String
-  | Cell FMod Exp -- #
+  | Cell FMod Exp
   | Func (Maybe String) [Arg] FuncExp
-  | Io IoExp -- #
-  | Flow Exp Exp -- #
+  | Io IoExp
+  | Flow Exp Exp
   | FRef String
-  | Program Exp Exp -- #
+  | Program Exp Exp
   deriving ( Show, Eq )
 
 
@@ -105,9 +107,9 @@ int :: Parser Exp
 int = LInt <$> num
 
 float :: Parser Exp
-float = LFloat <$> 
+float = LFloat <$>
   (  do
-      a <- num 
+      a <- num
       _ <- char '.'
       b <- natural <|> pure 0
       return (read ( show a <> "." <> show b ))
@@ -118,24 +120,24 @@ bool = LBool . read <$> (string "True" <|> string "False")
 
 str :: Parser Exp
 str = LString <$> enclosed (char '`') (char '`') (many beginning)
-  where 
+  where
     beginning = pre (\c -> isLatin1 c && c `notElem` "`")
 
 list :: Parser Exp
-list = LList <$> enclosed 
-                  (token (char '[')) 
-                  (token (char ']')) 
-                    (sepBy (token (char ',')) 
-                      term 
+list = LList <$> enclosed
+                  (token (char '['))
+                  (token (char ']'))
+                    (sepBy (token (char ','))
+                      term
                     )
      <|> string "[]" *> pure (LList [])
 
 tuple :: Parser Exp
-tuple = LTuple <$> enclosed 
-                    (token (char '(')) 
-                    (token (char ')')) 
+tuple = LTuple <$> enclosed
+                    (token (char '('))
+                    (token (char ')'))
                     (sepBy (token (char ';'))
-                     term 
+                     term
                     )
       <|> string "()" *> pure (LTuple [])
 
@@ -148,14 +150,14 @@ tuple = LTuple <$> enclosed
 
 pType :: Parser Type
 pType = _pFunc <|> simple
-  where 
+  where
     simple =  (TInt    <$  token (string "Int"))
           <|> (TFloat  <$  token (string "Float"))
           <|> (TString <$  token (string "Str"))
           <|> (TBool   <$  token (string "Bool"))
           <|> (TList   <$> _pList)
     _pList = string "List" *> enclosed (char '<') (char '>') (token pType)
-    _pFunc = 
+    _pFunc =
           do
             a <- token simple
             _ <- token ( string "->" )
@@ -177,17 +179,17 @@ program = (Program <$> flow <*> program)
 expr :: Parser Exp
 expr = term <|> flow
 
-flow :: Parser Exp 
+flow :: Parser Exp
 flow = (Flow <$> token cell <* token (string "=>") <*> token flow)
     <|> (Flow <$> cell <*> pure Nil)
 
 cell :: Parser Exp
-cell =  
+cell =
     token fRef
-    <|> ( Cell <$> (fMod <|> pure MNone) 
-               <*> enclosed 
-                     (token (char '{')) 
-                     (token (char '}')) 
+    <|> ( Cell <$> (fMod <|> pure MNone)
+               <*> enclosed
+                     (token (char '{'))
+                     (token (char '}'))
                      (func <|> token fRef <|> expr)
         )
 
@@ -195,12 +197,12 @@ term :: Parser Exp
 term = enclosed (char '(') (char ')') (token term)
      <|> io
      <|> literal
-     <|> binaryOp 
+     <|> binaryOp
      <|> token var
 
 identifier :: Parser String
 identifier = do
-   a0 <- pre isLetter 
+   a0 <- pre isLetter
    as <- some (pOr [isLetter, isDigit, (`elem` "_")])
    return (a0 : as)
   <|> some (pre isLetter)
@@ -213,12 +215,13 @@ identifier = do
 :--------------------------------}
 
 fMod :: Parser FMod
-fMod =  (MMap     <$ token ( string "map"     ))
-    <|> (MKeep    <$ token ( string "keep"    ))
-    <|> (MGen     <$ token ( string "gen"     ))
+fMod =  (MMap     <$ token ( string "map"  ))
+    <|> (MKeep    <$ token ( string "keep" ))
+    <|> (MGen     <$ token ( string "gen"  ))
+    <|> (MFold    <$ token ( string "fold" ))
 
 func :: Parser Exp
-func = 
+func =
   Func <$> optional (token label)
        <*> (token args <|> pure [])
        <*  token (char '=')
@@ -231,7 +234,7 @@ label :: Parser String
 label = char '~' *> identifier <* token (char ':')
 
 arg :: Parser Arg
-arg = 
+arg =
   Arg <$> token identifier
       <*> enclosed (char '(') (char ')') (token pType)
 
@@ -239,7 +242,7 @@ args :: Parser [Arg]
 args = sepBy (token (char ',')) arg
 
 fBody :: Parser FuncExp
-fBody = 
+fBody =
   ( Cond   <$> token expr
            <*  token (char '|')
            <*> token expr
@@ -262,21 +265,21 @@ io :: Parser Exp
 io = Io <$> (ioIn <|> ioOut)
 
 ioIn :: Parser IoExp
-ioIn = ( IoFileIn 
+ioIn = ( IoFileIn
          <$> token path
          <*  token (string "~>")
          <*> token pType
        ) <|> (IoStdIn <$> (token (string "~>") *> pType))
 
 ioOut :: Parser IoExp
-ioOut = ( IoFileOut 
+ioOut = ( IoFileOut
           <$> token path
           <*  token (string "<~")
           <*> token pType
         ) <|> (IoStdOut <$> (token (string "<~") *> pType))
 
 path :: Parser String
-path = do 
+path = do
   LString path <- str
   return path
 
@@ -289,7 +292,7 @@ path = do
 
 operator :: Parser Operator
 operator = foldl1 (<|>) $ aux <$> ops
-  where 
+  where
     aux (f, s) = f <$ string s
     ops = [ ( OpAdd, "+")
           , ( OpSub, "-")
@@ -311,7 +314,7 @@ var :: Parser Exp
 var = Var <$> identifier
 
 binaryOp :: Parser Exp
-binaryOp = 
+binaryOp =
   BinOp <$> token operator
         <*> token term
         <*> token term
@@ -327,18 +330,32 @@ printAST :: Maybe (Exp, String) -> IO ()
 printAST (Just (a, _)) = pPrint a
 
 parseString :: String -> Maybe (Exp, String)
-parseString input = fixRootProgram $ runParser program input 
+parseString input = fixRootProgram $ runParser program (removeComments input)
 
 parseFile :: String -> IO (Maybe (Exp, String))
 parseFile src = do
   f <- openFile src ReadMode
   parseString <$> hGetContents f
 
+removeComments :: String -> String
+removeComments s = foldl1 (<>) $ foldl aux gs (pair [] (elemIndices "%%" gs) [])
+  where
+    pair (a:b:_) as rs = pair [] as ((b, a):rs)
+    pair p (a:as) rs   = pair (a:p) as rs
+    pair p [] rs       = rs
+
+    gs = group s
+
+    aux s (i, j) = s0 <> s1
+      where
+        (s0, s')  = splitAt i s
+        (s'', s1) = splitAt (j - i) (drop 1 s')
+
 
 fixRootProgram :: Maybe (Exp, String) -> Maybe (Exp, String)
-fixRootProgram p@(Just (Program _ _, _)) 
+fixRootProgram p@(Just (Program _ _, _))
   = p
-fixRootProgram (Just (p, r)) 
+fixRootProgram (Just (p, r))
   = Just (Program p Nil, r)
-fixRootProgram a 
+fixRootProgram a
   = a

@@ -1,6 +1,7 @@
 module Eval where
 import           Control.Applicative
 import           Control.Monad
+import           Data.Bifunctor
 import           Data.Char
 import           Data.Function
 import           Data.List
@@ -159,6 +160,8 @@ typeOfRt r@(RTFunc (Cell _ (Func _ (a : args) _))) =
     foldr aux (TFunc (argType a) ) args TAny
     where
         aux a f = TFunc (f (argType a))
+
+typeOfRt r              = pTraceShow r TAny
 
 
 -- Cast the latter to the type of the former
@@ -337,15 +340,32 @@ step (Var k) s
 :--------------------------------}
 
 step (Cell MNone a) s = step a s
-step (Cell MMap a) s = (:[]) . foldl1 aux . concat <$> mapM (step a) ss0
+step (Cell MMap e) s0 = 
+    mapM (runner []) [[Datum e (s0 { stLast = a })] | a <- as0] 
+    >>= rejoin
     where
-        prepLast                     = deTuple . stLast
-        aux (Datum _ s) (Datum _ s') =
-            Datum Nil ( State
-                        (RTList (prepLast s <> prepLast s'))
-                        (stStack s `union` stStack s' )
-                      )
-        ss0 = (\a -> State a (stStack s)) <$> prepLast s
+        as0               = (deTuple . stLast) s0
+        iter (Datum e s)  = step e s
+        rejoin ls         = pure [Datum Nil s0 { stLast = wrapperOfState (stLast s0) (concat (reverse <$> ls)) }]
+
+        runner :: [RTVal] -> [Datum] -> IO [RTVal]
+        runner ready []   = pure ready
+        runner ready circ =
+            let (rs, cs)  = retire circ ready []
+            in mapM iter cs >>= runner rs . concat
+
+        wrapperOfState :: RTVal -> ([RTVal] -> RTVal)
+        wrapperOfState (RTTuple _) = RTTuple
+        wrapperOfState _           = RTList
+
+        retire :: [ Datum ] -> [ RTVal ] -> [ Datum ] -> ([ RTVal ], [ Datum ])
+        retire [] rs bs = (rs, bs)
+        retire (c:cs) rs bs
+            | Datum Nil s <- c
+            = retire cs (stLast s : rs) bs
+            | otherwise
+            = retire cs rs (c:bs)
+
 
 step (Cell MKeep a) s =   (:[])
                       .   (\ls -> Datum Nil (s {stLast = RTList ls}))
@@ -405,8 +425,8 @@ step (BinOp op a b) s = do
         _ -> pure [ Datum (BinOp op a b) s ]
 
 step node@(Func l args f_body) s = do
-    -- Define the function if is labeled
     let
+        -- Define the function if is labeled
         fns = maybe [] (\k -> [(k, RTFunc node) | not ( funcExists k s )]) l
 
         -- Check for partial application
@@ -499,7 +519,6 @@ check l s d =
         )
         d
 
-
 runFlow :: Maybe (Exp, a0) -> IO ()
 runFlow Nothing         = error "Filed to compile the source"
 runFlow (Just (ast, _)) = step ast (State RTNil []) >>= aux >> pure ()
@@ -509,3 +528,7 @@ runFlow (Just (ast, _)) = step ast (State RTNil []) >>= aux >> pure ()
                          >>= aux . concat
         iter (Datum e s) = step e s
         help ds = trace ("\n" <> intercalate ", " (fmap show ds)) ds
+
+{- TODO
+    - Fix mod nesting
+-}
