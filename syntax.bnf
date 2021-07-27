@@ -2,12 +2,13 @@
 <cell>      ::= '{' <exp> '}' | <f_mod> '{' <func> '}' | '{' <func> '}' 
                               | <f_mod> '{' <f_ref> '}' | '{' <f_ref> '}'
   <f_mod>     ::= 'map'  /* [a] -> { a -> b }       -> [b] */
-                | 'keep' /* [a] -> { a -> bool }    -> [a] */
+                | 'keep[]' /* [a] -> { a -> bool }  -> [a] */
+                | 'keep'  /* a -> { a -> bool }     ->  a  */
                 | 'gen'  /*  a  -> { seed (a) = 
                                       ( yield (b)
                                       ; next_seed (a)
                                       ; continue (bool)
-                                      ) } -> [b] */
+                                      ) } -> <b> */
                 /*  _       a   -> { a -> b }       -> b   */
 <exp>        ::= <flow> | <term> 
   <binary_op>  ::= <operator> <term> <term>

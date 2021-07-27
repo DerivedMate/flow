@@ -6,21 +6,20 @@ import           System.Environment
 import           System.IO
 
 interactiveShell :: IO ()
-interactiveShell = do
+interactiveShell = 
     putStrLn ("Welcome to Flow!\n"
                 <> intercalate "\n"
                     ((\p -> "\t" <> fst p <> " - " <> snd p) <$> options)
              )
-    loop
+    >> loop
     where
         options = [ (":q", "quit shell")
                   , (":ast <code>", "print ast")
                   , (":file <path>", "exec file")
                   ]
-        loop = do
-            putStr "flow> "
-            hFlush stdout
-            getLine >>= interpret
+        loop = putStr "flow> "
+            >> hFlush stdout
+            >> getLine >>= interpret
         interpret input
             | Just _ <- stripPrefix ":q" input
             = return ()
@@ -32,9 +31,12 @@ interactiveShell = do
             = runFlow (parseString input) >> loop
 
 main :: IO ()
-main = do
+main = testMain <*  
+    (do  
     args <- getArgs
     case args of
         []             -> interactiveShell
-        (filePath : _) -> parseFile filePath >>= runFlow
-
+        (filePath : _) -> parseFile filePath >>= runFlow)
+    
+testMain :: IO ()
+testMain = parseFile "test/example/pg.hf" >>= runFlow

@@ -25,6 +25,7 @@ import           Text.Pretty.Simple  (pPrint)
 data FMod
   = MNone
   | MMap
+  | MKeepEnum
   | MKeep
   | MGen
   | MFold
@@ -91,6 +92,7 @@ data Exp
   | Flow Exp Exp
   | FRef String
   | Program Exp Exp
+  | Anchor Exp Exp
   deriving ( Show, Eq )
 
 
@@ -215,10 +217,11 @@ identifier = do
 :--------------------------------}
 
 fMod :: Parser FMod
-fMod =  (MMap     <$ token ( string "map"  ))
-    <|> (MKeep    <$ token ( string "keep" ))
-    <|> (MGen     <$ token ( string "gen"  ))
-    <|> (MFold    <$ token ( string "fold" ))
+fMod =  (MMap      <$ token ( string "map"    ))
+    <|> (MKeepEnum <$ token ( string "keep[]" ))
+    <|> (MKeep     <$ token ( string "keep"   ))
+    <|> (MGen      <$ token ( string "gen"    ))
+    <|> (MFold     <$ token ( string "fold"   ))
 
 func :: Parser Exp
 func =

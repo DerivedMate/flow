@@ -8,9 +8,12 @@ import           Data.List
 import           Data.Maybe
 import           Debug.Pretty.Simple
 import           Debug.Trace
+import           GHC.Stack
 import           Helper.AssocMap
 import           Syntax
 import           System.IO
+import           System.IO.Unsafe
+import Data.Functor
 
 data RTVal
     = RTInt    Int
@@ -19,7 +22,8 @@ data RTVal
     | RTBool   Bool
     | RTList   [ RTVal ]
     | RTTuple  [ RTVal ]
-    | RTFunc   Exp        -- Maybe
+    | RTFunc   Exp
+    | RTRef    Exp State
     | RTNil
 
 instance Show RTVal where
@@ -42,6 +46,7 @@ instance Show RTVal where
                 (map show args)
     show RTNil        = "nil"
     show (RTFunc a)   = show a
+    show (RTRef e e') = "$ref: " <> show e <> "; " <> show e'
 
 instance Eq RTVal where
     RTNil           == RTNil = True
@@ -60,6 +65,8 @@ instance Eq RTVal where
                             in aa == bb
     a@(RTFunc aa)   == b = let RTFunc bb = unifyType a b
                             in aa == bb
+    a@(RTRef a0 a1) == b = let RTRef b0 b1 = unifyType a b
+                            in a0 == b0 && a1 == b1
     RTNil           == b = False
 
 instance Ord RTVal where
@@ -75,7 +82,8 @@ instance Ord RTVal where
                             in aa <= bb
     a@(RTTuple aa)  <= b = let RTTuple bb = unifyType a b
                             in aa <= bb
-    a@(RTFunc aa)   <= b = False
+    (RTFunc _)      <= b = False
+    (RTRef _ _)     <= b = False
     RTNil           <= b = True
 
 type Frame = AssocMap String RTVal
@@ -83,13 +91,13 @@ type Frame = AssocMap String RTVal
 data State
     = State { stLast  :: RTVal
             , stStack :: [ Frame ]
-            } deriving Eq
-
+            } deriving (Show, Eq)
+{-
 instance Show State where
     show (State last stack) =
            "[Last]: "    <> show last
         <> "\n[Stack]: " <> show stack
-
+-}
 data Datum
     = Datum { datumExp   :: Exp
             , datumState :: State
@@ -161,7 +169,7 @@ typeOfRt r@(RTFunc (Cell _ (Func _ (a : args) _))) =
     where
         aux a f = TFunc (f (argType a))
 
-typeOfRt r              = pTraceShow r TAny
+typeOfRt r              = error "Unknown typeOfRt"
 
 
 -- Cast the latter to the type of the former
@@ -257,6 +265,8 @@ assignVars :: RTVal -> [ Arg ] -> [ (String, RTVal) ]
 assignVars (RTTuple ts) args = zipWith bindVar ts args
 assignVars v          (a: _) = [bindVar v a]
 assignVars _             []  = []
+
+bindVar :: RTVal -> Arg -> (String, RTVal)
 bindVar v (Arg k t)          = (k, cast t v)
 
 deleteVars :: [ String ] -> [ Frame ] -> [ Frame ]
@@ -271,17 +281,12 @@ deleteVars (v:vs) (f:fs)
         isEmpty [] = True
         isEmpty _  = False
 
-correctLast :: [ Arg ] -> [ Datum ] -> [ Datum ]
-correctLast args [] = []
-correctLast args ds = fmap aux ds
-    where
-        aux d  = d { datumState =
-                    (datumState d) { stStack = stack' }
-                   }
-            where
-                stack' = deleteVars (fmap argName args) (stStack $ datumState d)
+getVarF :: String -> Frame -> Maybe RTVal
+getVarF = lookup
 
-
+getVar :: String -> State -> Maybe RTVal
+getVar k s = foldl aux Nothing (stStack s)
+    where aux a f = a <|> getVarF k f
 
 {--------------------------------:
     Tuple Helpers
@@ -340,8 +345,8 @@ step (Var k) s
 :--------------------------------}
 
 step (Cell MNone a) s = step a s
-step (Cell MMap e) s0 = 
-    mapM (runner []) [[Datum e (s0 { stLast = a })] | a <- as0] 
+step (Cell MMap e) s0 =
+    mapM (runner []) [[Datum e (s0 { stLast = a })] | a <- as0]
     >>= rejoin
     where
         as0               = (deTuple . stLast) s0
@@ -367,43 +372,64 @@ step (Cell MMap e) s0 =
             = retire cs rs (c:bs)
 
 
-step (Cell MKeep a) s =   (:[])
-                      .   (\ls -> Datum Nil (s {stLast = RTList ls}))
-                      <$> mLasts'
+step (Cell MKeep e) s = step e s >>= (concat <$>) . mapM aux
     where
-        mLasts'                    =   map fst
-                                   .   filter discriminant
-                                   .   zip (stLast <$> ss0)
-                                   .   map toPred
-                                   .   concat
-                                   <$> mapM (step a) ss0
-        discriminant (_, RTBool a) = a
-        discriminant (a, b)        = discriminant (a, cast TBool b)
-        toPred (Datum _ s)         = cast TBool (stLast s)
-        prepLast                   = deTuple . stLast
-        ss0                        = (\a -> s {stLast = a}) <$> prepLast s
+        discriminant r
+            | RTBool d <- cast TBool r
+            = d
+            | otherwise
+            = error "Non-bool cast in keep predicate"
+
+        aux (Datum Nil s')
+            | discriminant (stLast s')
+            = pure [ Datum Nil s ]
+            | otherwise
+            = pure []
+        aux (Datum e' s')
+            = pure [ Datum (Cell MKeep e') s' ]
 
 -- MGen needs the flow reference
-step self@(Flow (Cell MGen a) b) s = do
-    manageReturn <$> step a s
+step self@(Cell MGen a) s = 
+    step a s >>= mapM manageReturn . traceShowId <&> concat 
     where
-        manageReturn :: [ Datum ] -> [ Datum ]
-        manageReturn []               = []
-        manageReturn (Datum _ s : ds) = matchResult (stLast s) <> ds
+        gName    = "$prev_gen"
+        manageReturn :: Datum -> IO [Datum]
+        manageReturn (Datum Nil s')
+            = pure $ matchResult (stLast s')
+        manageReturn r@(Datum e s')
+            = step e s'
+            where
+                isSubGen
+                    | Just (RTRef g s0) <- getVar gName s
+                    = stStack s0 `isPrefixOf` stStack s
+                    | otherwise 
+                    = True
+                s''      = if isSubGen
+                            then s
+                            else s { stStack =
+                                      [(gName, RTRef self s)] : stStack s
+                                   }
 
         matchResult :: RTVal -> [ Datum ]
-        matchResult (RTTuple [yield, next, RTBool do_emit])
-            | do_emit    =
-                [ Datum b    (s { stLast = yield })
-                , Datum self (s { stLast = next  })
-                ]
-            | otherwise  = []
-        matchResult (RTTuple [yield, next]) =
-            matchResult (RTTuple [yield, next, RTBool True])
-        matchResult (RTTuple []) =
-            []
-        matchResult r =
-            matchResult (RTTuple [r, r, RTBool True])
+        matchResult r
+            | RTTuple [yield, next, RTBool True] <- r
+            = let
+                self'  = case getVar gName s of
+                             Just (RTRef e _) -> e
+                             _                -> self
+                stack' = deleteVars [gName] (stStack s)
+              in -- pTraceShowId
+                 [ Datum Nil   (s { stLast = yield, stStack = stack' })
+                 , Datum self' (s { stLast = next })
+                 ]
+            | RTTuple [_, _, RTBool False] <- r
+            = []
+            | RTTuple [yield, next] <- r
+            = matchResult (RTTuple [yield, next, RTBool True])
+            | RTTuple [] <- r
+            = []
+            | otherwise
+            = matchResult (RTTuple [r, r, RTBool True])
 
 {--------------------------------:
     Operations
@@ -471,24 +497,22 @@ step (FRef k) s = do
     where f = funcFind k s
 
 step self@(Flow a b) s = do
-    r <- step a s
-    case r of
-        ( Datum Nil s' : ds ) -> pure ( Datum b s' : ds )
-        ( Datum a'  s' : ds ) -> pure ( Datum (Flow a' b) s' : ds )
-        rs                    -> error
-            ("Empty Flow Return:\n[Node]: "  <> show a
-                            <> "\n[State]: " <> show s
-            )
+    map aux <$> step a s
+    where 
+        aux r
+            | Datum Nil s' <- r
+            = Datum b s'
+            | Datum a'  s' <- r
+            = Datum (Flow a' b) s'
 
 step self@(Program a b) s = do
-    r <- step a s
-    case r of
-        ( Datum Nil s' : ds ) -> pure ( Datum b (s' { stLast = RTNil }) : ds )
-        ( Datum a'  s' : ds ) -> pure ( Datum (Program a' b) s' : ds )
-        rs                    -> error
-            ("Empty Flow Return:\n[Node]: "  <> show a
-                            <> "\n[State]: " <> show s
-            )
+    map aux <$> step a s
+    where
+        aux r 
+            | Datum Nil s' <- r
+            = Datum b (s' { stLast = RTNil })
+            | Datum a'  s' <- r
+            = Datum (Program a' b) s'
 
 step (Io (IoStdIn t)) s = do
     l <- getLine
@@ -527,8 +551,14 @@ runFlow (Just (ast, _)) = step ast (State RTNil []) >>= aux >> pure ()
         aux ds           = sequence ( iter <$> ds )
                          >>= aux . concat
         iter (Datum e s) = step e s
-        help ds = trace ("\n" <> intercalate ", " (fmap show ds)) ds
+        help ds = trace ("\n" <> intercalate ", \n\n" (fmap show ds) <> "\n\n") ds
 
 {- TODO
     - Fix mod nesting
+-}
+
+{-
+
+
+
 -}
