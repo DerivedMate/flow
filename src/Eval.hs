@@ -1,9 +1,12 @@
+{-# LANGUAGE TupleSections #-}
+
 module Eval where
 import           Control.Applicative
 import           Control.Monad
 import           Data.Bifunctor
 import           Data.Char
 import           Data.Function
+import           Data.Functor
 import           Data.List
 import           Data.Maybe
 import           Debug.Pretty.Simple
@@ -13,7 +16,8 @@ import           Helper.AssocMap
 import           Syntax
 import           System.IO
 import           System.IO.Unsafe
-import Data.Functor
+import           Text.Pretty.Simple
+import           Text.Show
 
 data RTVal
     = RTInt    Int
@@ -299,6 +303,10 @@ deTuple (RTList a)   = a
 deTuple (RTString s) = map (RTString . (:[])) s
 deTuple a            = [a]
 
+wrapperOfState :: RTVal -> ([RTVal] -> RTVal)
+wrapperOfState (RTTuple _) = RTTuple
+wrapperOfState _           = RTList
+
 {--------------------------------:
     Main Line
 :--------------------------------}
@@ -359,10 +367,6 @@ step (Cell MMap e) s0 =
             let (rs, cs)  = retire circ ready []
             in mapM iter cs >>= runner rs . concat
 
-        wrapperOfState :: RTVal -> ([RTVal] -> RTVal)
-        wrapperOfState (RTTuple _) = RTTuple
-        wrapperOfState _           = RTList
-
         retire :: [ Datum ] -> [ RTVal ] -> [ Datum ] -> ([ RTVal ], [ Datum ])
         retire [] rs bs = (rs, bs)
         retire (c:cs) rs bs
@@ -372,7 +376,7 @@ step (Cell MMap e) s0 =
             = retire cs rs (c:bs)
 
 
-step (Cell MKeep e) s = step e s >>= (concat <$>) . mapM aux
+step (Cell MKeep e) s = step e s >>= mapM aux <&> concat
     where
         discriminant r
             | RTBool d <- cast TBool r
@@ -388,48 +392,69 @@ step (Cell MKeep e) s = step e s >>= (concat <$>) . mapM aux
         aux (Datum e' s')
             = pure [ Datum (Cell MKeep e') s' ]
 
--- MGen needs the flow reference
-step self@(Cell MGen a) s = 
-    step a s >>= mapM manageReturn . traceShowId <&> concat 
+step (Cell MKeepEnum e) s
+    =   mapM runBranch ((deTuple . stLast) s) 
+    <&> rewrap . foldl1 (<>)
     where
-        gName    = "$prev_gen"
-        manageReturn :: Datum -> IO [Datum]
-        manageReturn (Datum Nil s')
-            = pure $ matchResult (stLast s')
-        manageReturn r@(Datum e s')
-            = step e s'
-            where
-                isSubGen
-                    | Just (RTRef g s0) <- getVar gName s
-                    = stStack s0 `isPrefixOf` stStack s
-                    | otherwise 
-                    = True
-                s''      = if isSubGen
-                            then s
-                            else s { stStack =
-                                      [(gName, RTRef self s)] : stStack s
-                                   }
+        runBranch :: RTVal -> IO [ RTVal ]
+        runBranch v = exhaustBranch v [] [ Datum e (s { stLast = v }) ]
 
-        matchResult :: RTVal -> [ Datum ]
-        matchResult r
-            | RTTuple [yield, next, RTBool True] <- r
-            = let
-                self'  = case getVar gName s of
-                             Just (RTRef e _) -> e
-                             _                -> self
-                stack' = deleteVars [gName] (stStack s)
-              in -- pTraceShowId
-                 [ Datum Nil   (s { stLast = yield, stStack = stack' })
-                 , Datum self' (s { stLast = next })
-                 ]
-            | RTTuple [_, _, RTBool False] <- r
-            = []
-            | RTTuple [yield, next] <- r
-            = matchResult (RTTuple [yield, next, RTBool True])
-            | RTTuple [] <- r
-            = []
+        retire :: [ Datum ] -> ( [ RTVal ], [ Datum ] ) -> ( [ RTVal ], [ Datum ] )
+        retire [] (rs, ys)
+            = ( rs, ys )
+        retire (d:ds) (rs, ys)
+            | Nil         == datumExp d
+            , RTBool True == (stLast . datumState) d
+            = retire ds ( (stLast . datumState) d : rs, ys )
+            | Nil == datumExp d
+            = retire ds ( rs, ys )
             | otherwise
-            = matchResult (RTTuple [r, r, RTBool True])
+            = retire ds ( rs, d : ys )
+
+        exhaustBranch :: RTVal -> [ RTVal ] -> [ Datum ] -> IO [ RTVal ]
+        exhaustBranch v retired []
+            = pure [ v | r <- retired, cast TBool r == RTBool True ]
+        exhaustBranch v retired ds
+            = let (retired', ds') = retire ds (retired, [])
+              in iter ds' >>= exhaustBranch v retired'
+
+        iter :: [Datum] -> IO [Datum]
+        iter ds = concat <$> mapM (\(Datum e s) -> step e s) ds
+
+        rewrap :: [RTVal] -> [Datum]
+        rewrap vs = [ Datum Nil (s {stLast = (wrapperOfState . stLast) s vs}) ]
+
+
+step (Cell MGen a) s =
+    pure [Datum (Anchor MGen a a) s]
+
+step (Anchor MGen e0 e) s0 = step e s0 >>= aux
+    where
+        aux :: [ Datum ] -> IO [ Datum ]
+        aux ds
+            = mapM discriminant ds <&> concat
+
+        discriminant :: Datum -> IO [ Datum ]
+        discriminant d
+            | Datum Nil s' <- d
+            = (pure . matchResult) s'
+            | Datum e'  s' <- d
+            = pure [ Datum (Anchor MGen e0 e') s']
+
+        matchResult :: State -> [ Datum ]
+        matchResult s
+            | RTTuple [ y, k, RTBool doEmit ] <- l
+            , doEmit
+            = [ Datum Nil (s { stLast = y })
+              , Datum (Anchor MGen e0 e0) (s0 { stLast = k })
+              ]
+            | RTTuple [ y, k ] <- l
+            = matchResult $ s { stLast = RTTuple [ y, k, RTBool True ] }
+            | RTTuple [ y ] <- l
+            = matchResult $ s { stLast = RTTuple [ y, y, RTBool True ] }
+            | otherwise
+            = []
+            where l = stLast s
 
 {--------------------------------:
     Operations
@@ -498,7 +523,7 @@ step (FRef k) s = do
 
 step self@(Flow a b) s = do
     map aux <$> step a s
-    where 
+    where
         aux r
             | Datum Nil s' <- r
             = Datum b s'
@@ -508,7 +533,7 @@ step self@(Flow a b) s = do
 step self@(Program a b) s = do
     map aux <$> step a s
     where
-        aux r 
+        aux r
             | Datum Nil s' <- r
             = Datum b (s' { stLast = RTNil })
             | Datum a'  s' <- r
@@ -551,14 +576,4 @@ runFlow (Just (ast, _)) = step ast (State RTNil []) >>= aux >> pure ()
         aux ds           = sequence ( iter <$> ds )
                          >>= aux . concat
         iter (Datum e s) = step e s
-        help ds = trace ("\n" <> intercalate ", \n\n" (fmap show ds) <> "\n\n") ds
-
-{- TODO
-    - Fix mod nesting
--}
-
-{-
-
-
-
--}
+        help ds = trace ("\n" <> intercalate " <<<<<<<< END >>>>>>>> \n\n" (fmap (show . (\(Datum e s) -> Datum e s{stStack = []})) ds) <> "\n\n") ds

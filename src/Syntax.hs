@@ -5,6 +5,7 @@ import           Data.Char
 import           Data.List
 import           Data.Maybe
 import           Lexer
+import           PreProcessor
 import           System.IO
 import           Text.Pretty.Simple  (pPrint)
 
@@ -92,7 +93,7 @@ data Exp
   | Flow Exp Exp
   | FRef String
   | Program Exp Exp
-  | Anchor Exp Exp
+  | Anchor FMod Exp Exp
   deriving ( Show, Eq )
 
 
@@ -339,20 +340,6 @@ parseFile :: String -> IO (Maybe (Exp, String))
 parseFile src = do
   f <- openFile src ReadMode
   parseString <$> hGetContents f
-
-removeComments :: String -> String
-removeComments s = foldl1 (<>) $ foldl aux gs (pair [] (elemIndices "%%" gs) [])
-  where
-    pair (a:b:_) as rs = pair [] as ((b, a):rs)
-    pair p (a:as) rs   = pair (a:p) as rs
-    pair p [] rs       = rs
-
-    gs = group s
-
-    aux s (i, j) = s0 <> s1
-      where
-        (s0, s')  = splitAt i s
-        (s'', s1) = splitAt (j - i) (drop 1 s')
 
 
 fixRootProgram :: Maybe (Exp, String) -> Maybe (Exp, String)
