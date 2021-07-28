@@ -11,7 +11,7 @@ exec 4<$tmpRunResult
 correct=0
 wrong=0
 
-stack build
+stack build --silent
 
 for f in $(ls "${testBase}/out")
 do
@@ -24,7 +24,7 @@ do
     echo "[$f :: input]: $(cat $input)"
     echo "[$f :: expect]: $output"
 
-    if [ -f $input ]; 
+    if [ -f "$input" ]; 
         then 
             cat $input | stack run -- "${testBase}/src/${base}.hf" >&3
         else 

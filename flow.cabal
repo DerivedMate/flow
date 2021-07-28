@@ -26,6 +26,14 @@ source-repository head
 library
   exposed-modules:
       Eval
+      Eval.RT
+      Eval.Step
+      Eval.Step.Common
+      Eval.Step.Control
+      Eval.Step.Func
+      Eval.Step.Higher
+      Eval.Step.IO
+      Eval.Step.Literal
       Helper.AssocMap
       Lexer
       PreProcessor
