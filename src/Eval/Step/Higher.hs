@@ -88,8 +88,10 @@ stepHigher step (Anchor MGen e0 e) s0 = step e s0 >>= aux
     = matchResult $ s { stLast = RTTuple [y, k, RTBool True] }
     | RTTuple [y] <- l
     = matchResult $ s { stLast = RTTuple [y, y, RTBool True] }
-    | otherwise
+    | RTNil <- l
     = []
+    | r <- l
+    = matchResult $ s { stLast = RTTuple [r, r, RTBool True] }
     where l = stLast s
 
 

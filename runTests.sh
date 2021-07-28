@@ -1,5 +1,9 @@
 #!/usr/bin/bash
 
+GREEN='\033[1;32m'
+RED='\033[1;31m'
+NC='\033[0m' # No Color
+
 testBase="$(realpath ./test/lang)"
 tmpRunResult="$(mktemp /tmp/flow_test_lang_run.XXXXXX)"
 
@@ -11,7 +15,10 @@ exec 4<$tmpRunResult
 correct=0
 wrong=0
 
+printf "[pre :: build]: start\n"
 stack build --silent
+printf "[pre :: build]: done\n"
+
 
 for f in $(ls "${testBase}/out")
 do
@@ -21,8 +28,9 @@ do
     output="$(cat ${testBase}/out/${base}.out)"
 
     echo "[start]: $f"
-    echo "[$f :: input]: $(cat $input)"
-    echo "[$f :: expect]: $output"
+    [[ -f $input ]] && echo "[$f :: input]: $(cat $input)"
+    echo "[$f :: expected]:"
+    echo $output
 
     if [ -f "$input" ]; 
         then 
@@ -32,17 +40,18 @@ do
     fi
 
     result="$(cat <&4)"
-    echo "[$f :: returned]: $result"
+    echo "[$f :: returned]:"
+    echo $result
     
     if [[ "$result" == "$output" ]];
         then 
-            echo "[correct]: $f"
+            echo -e "[${GREEN}correct${NC}]: $f"
             ((correct++))
         else 
-            echo "[wrong]: $f"
+            echo -e "[${RED}wrong${NC}]: $f"
             ((wrong++))
     fi
-    echo ""
+    echo -e "\n"
 done
 
 echo "errors: $wrong; correct: $correct; total: $((wrong + correct))"

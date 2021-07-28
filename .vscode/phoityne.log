@@ -3,3 +3,9 @@
 2021-07-25 20:34:01.552160928000 [186812(ThreadId 8)] CRITICAL REQUEST - invalid HANDLE. eof.
 2021-07-27 19:41:30.112269988000 [35606(ThreadId 8)] CRITICAL REQUEST - invalid HANDLE. eof.
 2021-07-27 19:58:31.588378197000 [39266(ThreadId 8)] CRITICAL REQUEST - invalid HANDLE. eof.
+2021-07-28 18:32:37.726541120000 [122374(ThreadId 8)] CRITICAL REQUEST - invalid HANDLE. eof.
+2021-07-28 18:33:12.302149996000 [122771(ThreadId 9)] ERROR APP - user error (ExecResult not found.)
+2021-07-28 18:33:59.328607505000 [122998(ThreadId 9)] ERROR APP - user error (ExecResult not found.)
+2021-07-28 18:35:05.355937091000 [123312(ThreadId 9)] ERROR APP - user error (variable id:11 not found.)
+2021-07-28 18:36:23.812206617000 [123312(ThreadId 8)] WARNING REQUEST - unsupported request command. {"command":"stepOut","arguments":{"threadId":0},"type":"request","seq":101}
+2021-07-28 18:36:28.938733680000 [123312(ThreadId 8)] WARNING REQUEST - unsupported request command. {"command":"stepOut","arguments":{"threadId":0},"type":"request","seq":102}

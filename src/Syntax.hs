@@ -5,21 +5,9 @@ import           Data.Char
 import           Lexer
 import           PreProcessor
 import           System.IO
-import           Text.Pretty.Simple  (pPrint)
+import           Text.Pretty.Simple
+import Data.Functor
 
-{--------------------------------:
-    Examples
-:--------------------------------}
-{----:
-  Factorial:
-
-  {(~> Int; 1)}
-  => { ~fact: a (Int), b (Int) =
-        > a 1 | {(- a 1 ; * a b)} => ~fact
-              | { b }
-     }
-  => {<~ Int}
-:----}
 
 data FMod
   = MNone
@@ -187,6 +175,7 @@ flow = (Flow <$> token cell <* token (string "=>") <*> token flow)
 cell :: Parser Exp
 cell =
     token fRef
+    <|> ( Cell <$> fMod <*> token fRef )
     <|> ( Cell <$> (fMod <|> pure MNone)
                <*> enclosed
                      (token (char '{'))
@@ -236,9 +225,9 @@ label :: Parser String
 label = char '~' *> identifier <* token (char ':')
 
 arg :: Parser Arg
-arg =
-  Arg <$> token identifier
-      <*> enclosed (char '(') (char ')') (token pType)
+arg = (Arg <$> token identifier
+           <*> enclosed (char '(') (char ')') (token pType))
+  <|> (Arg <$> token identifier <*> pure TAny)
 
 args :: Parser [Arg]
 args = sepBy (token (char ',')) arg
@@ -313,7 +302,9 @@ operator = foldl1 (<|>) $ aux <$> ops
           ]
 
 var :: Parser Exp
-var = Var <$> identifier
+var = 
+      (Var . ('&':) <$> (string "&" *> natural <&> show))
+  <|> (Var <$> identifier)
 
 binaryOp :: Parser Exp
 binaryOp =

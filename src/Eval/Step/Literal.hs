@@ -27,7 +27,7 @@ stepLiteral step (BinOp op a b) s = do
   ra <- step a s
   case ra of
     (Datum Nil s' : _) -> do
-      rb <- step b s'
+      rb <- step b s
       case rb of
         (Datum Nil s'' : _) ->
           pure [Datum Nil (s'' { stLast = fOfBop op (stLast s') (stLast s'') })]

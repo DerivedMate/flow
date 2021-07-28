@@ -31,7 +31,7 @@ interactiveShell =
             = runFlow (parseString input) >> loop
 
 main :: IO ()
-main =  
+main = 
     (do  
     args <- getArgs
     case args of
