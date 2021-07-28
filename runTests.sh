@@ -11,6 +11,8 @@ exec 4<$tmpRunResult
 correct=0
 wrong=0
 
+stack build
+
 for f in $(ls "${testBase}/out")
 do
     base="$(basename -- $f)"

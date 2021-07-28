@@ -96,12 +96,7 @@ data State
     = State { stLast  :: RTVal
             , stStack :: [ Frame ]
             } deriving (Show, Eq)
-{-
-instance Show State where
-    show (State last stack) =
-           "[Last]: "    <> show last
-        <> "\n[Stack]: " <> show stack
--}
+
 data Datum
     = Datum { datumExp   :: Exp
             , datumState :: State
@@ -280,10 +275,9 @@ deleteVars (v:vs) (f:fs)
     | isEmpty f' = deleteVars vs fs
     | otherwise  = deleteVars vs (f':fs)
     where
-        f'   = vrs'
-        vrs' = deleteBy ((==) `on` fst) (v, RTNil) f
-        isEmpty [] = True
-        isEmpty _  = False
+        f'      = vrs'
+        vrs'    = deleteBy ((==) `on` fst) (v, RTNil) f
+        isEmpty = null
 
 getVarF :: String -> Frame -> Maybe RTVal
 getVarF = lookup
@@ -291,6 +285,16 @@ getVarF = lookup
 getVar :: String -> State -> Maybe RTVal
 getVar k s = foldl aux Nothing (stStack s)
     where aux a f = a <|> getVarF k f
+
+correctLast :: [Arg] -> [Datum] -> [Datum]
+correctLast args [] = []
+correctLast args ds = fmap aux ds
+    where
+        aux d  = d { datumState=
+                    (datumState d) { stStack = stack' }
+                    }
+            where
+                stack' = deleteVars (fmap argName args) (stStack $ datumState d)
 
 {--------------------------------:
     Tuple Helpers
@@ -393,7 +397,7 @@ step (Cell MKeep e) s = step e s >>= mapM aux <&> concat
             = pure [ Datum (Cell MKeep e') s' ]
 
 step (Cell MKeepEnum e) s
-    =   mapM runBranch ((deTuple . stLast) s) 
+    =   mapM runBranch ((deTuple . stLast) s)
     <&> rewrap . foldl1 (<>)
     where
         runBranch :: RTVal -> IO [ RTVal ]
@@ -497,7 +501,7 @@ step node@(Func l args f_body) s = do
                    }
         in
             if doRun
-                then stepFExp f_body s'
+                then stepFExp f_body s' <&> fmap fixLast
                 else pure [ Datum Nil s' ]
     where
         stepFExp :: FuncExp -> State -> IO [ Datum ]
@@ -514,6 +518,12 @@ step node@(Func l args f_body) s = do
                          <> "\n[State]: "     <> show s
                          <> "\n[Condition]: " <> show c
                     )
+        fixLast :: Datum -> Datum
+        fixLast d
+            | datumExp d == Nil
+            = head $ correctLast args [d] 
+            | otherwise 
+            = d
 
 step (FRef k) s = do
     if funcExists k s
@@ -576,4 +586,4 @@ runFlow (Just (ast, _)) = step ast (State RTNil []) >>= aux >> pure ()
         aux ds           = sequence ( iter <$> ds )
                          >>= aux . concat
         iter (Datum e s) = step e s
-        help ds = trace ("\n" <> intercalate " <<<<<<<< END >>>>>>>> \n\n" (fmap (show . (\(Datum e s) -> Datum e s{stStack = []})) ds) <> "\n\n") ds
+        help ds = trace ("\n" <> intercalate " <<<<<<<< END >>>>>>>> \n\n" (fmap show ds) <> "\n\n") ds
