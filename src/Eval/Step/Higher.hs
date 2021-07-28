@@ -38,6 +38,7 @@ stepHigher step (Cell MKeep e) s = step e s >>= mapM aux <&> concat
                      | otherwise                = pure []
   aux (Datum e' s') = pure [Datum (Cell MKeep e') s']
 
+
 stepHigher step (Cell MKeepEnum e) s =
   mapM runBranch ((deTuple . stLast) s) <&> rewrap . foldl1 (<>)
  where
@@ -68,7 +69,6 @@ stepHigher step (Cell MKeepEnum e) s =
 
 
 stepHigher step (Cell MGen a     ) s  = pure [Datum (Anchor MGen a a) s]
-
 stepHigher step (Anchor MGen e0 e) s0 = step e s0 >>= aux
  where
   aux :: [Datum] -> IO [Datum]
@@ -91,5 +91,6 @@ stepHigher step (Anchor MGen e0 e) s0 = step e s0 >>= aux
     | otherwise
     = []
     where l = stLast s
+
 
 stepHigher _ d _ = error $ "Unmatched expression in `stepHigher`: \n" <> show d
