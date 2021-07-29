@@ -17,7 +17,7 @@ stepFunc step node@(Func l args f_body) s =
         then
           let (appliedArgs, leftArgs) = splitAt (rtLength (stLast s)) args
           in  ( RTFunc (Func l leftArgs f_body)
-              , assignVars (stLast s) appliedArgs 
+              , assignVars (stLast s) appliedArgs
               , False
               )
         else (RTNil, assignVars (stLast s) args, True)
@@ -28,20 +28,23 @@ stepFunc step node@(Func l args f_body) s =
   stepFExp :: FuncExp -> State -> IO [Datum]
   stepFExp FNil         s = pure [Datum Nil s]
   stepFExp (Single a  ) s = step a s
-  stepFExp (Cond c a b) s = do
-    (rc : _) <- step c s
-    case (cast TBool . stLast . datumState) rc of
-      RTBool True  -> step a s
-      RTBool False -> stepFExp b s
-      r            -> error
-        (  "Undefined boolean cast in func conditional:"
-        <> "\n[Cast]: "
-        <> show r
-        <> "\n[State]: "
-        <> show s
-        <> "\n[Condition]: "
-        <> show c
-        )
+  stepFExp (Cond c a b) s = step c s >>= mapM matchResult <&> concat
+   where
+    matchResult r
+      | Datum Nil s' <- r = case (cast TBool . stLast) s' of
+        RTBool True  -> step a s
+        RTBool False -> stepFExp b s
+        r            -> error
+          (  "Undefined boolean cast in func conditional:"
+          <> "\n[Cast]: "
+          <> show r
+          <> "\n[State]: "
+          <> show s
+          <> "\n[Condition]: "
+          <> show c
+          )
+      | Datum c' s' <- r = stepFExp (Cond c' a b) s'
+
   fixLast :: Datum -> Datum
   fixLast d | datumExp d == Nil = head $ correctLast args [d]
             | otherwise         = d

@@ -10,7 +10,7 @@ import           Syntax
 
 
 runFlow :: Maybe (Exp, a0) -> IO ()
-runFlow Nothing         = error "Filed to compile the source"
+runFlow Nothing         = error "Failed to compile the source"
 runFlow (Just (ast, _)) = step ast (State RTNil []) >>= aux >> pure ()
   where
     aux [] = pure ()
