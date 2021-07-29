@@ -93,7 +93,7 @@ Flow uses prefix notation for binary operations. If an operation is not defined 
 | equal                 | `==`   |
 | not equal             | `/=`   |
 | and                   | `&&`   |
-| or                    | `||`   |
+| or                    | `\|\|`   |
 
 ## Functions
 
