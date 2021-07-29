@@ -241,8 +241,9 @@ getVarF :: String -> Frame -> Maybe RTVal
 getVarF = lookup
 
 getVar :: String -> State -> Maybe RTVal
-getVar ('&' : k) s | index < length scope = Just (scope !! index)
-                   | otherwise            = Nothing
+getVar ('&' : k) s | index == 0            = Just (stLast s)
+                   | index <= length scope = Just (scope !! (index - 1))
+                   | otherwise             = Nothing
  where
   scope = (deTuple . stLast) s
   index = read k :: Int

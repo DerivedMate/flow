@@ -225,7 +225,15 @@ output:
 Capturing can be employed to use the results of the previous flow, without explicitly defining variables. For example, instead of defining the `~add` function, we can write:
 
 ```
-{(1; 3)} => { + &0 &1 } => { <~ Int } %% => 4 %%
+{(1; 3)} => { + &1 &2 } => { <~ Int } %% => 4 %%
+```
+
+Expression `&i` for a natural number `i` refers to the i-th argument. `&0` refers to the entire argument (/collection):
+
+```
+{(1; 3)} => {[&0, &0]}       %% [(1; 3), (1; 3)] %%
+         => map { + &1 &2 }  %% [4, 4]           %%
+         => { <~ List<Int> }
 ```
 
 However, where this feature truly comes in handy is in nested generators. Consider:
@@ -237,16 +245,15 @@ However, where this feature truly comes in handy is in nested generators. Consid
 
 {[3, 2, 1]} 
     => map { n = {n} => gen {
-                 {n} => gen ~iter
+             m = {m} => gen ~iter
                      => { r = (r; - r 1) }
-                 } 
-           } 
+            }} 
     => { <~ List<Int> }
 
 {[3, 2, 1]} 
-    => map {{&0} => gen { 
-            {&0} => gen ~iter 
-                 => {(&0; - &0 1)} 
+    => map {{&1} => gen { 
+            {&1} => gen ~iter 
+                 => {(&1; - &1 1)} 
             }}
     => { <~ List<Int> }
 ```
@@ -256,5 +263,5 @@ The latter gets rid of dummy variable declarations.
 Capturing can also be used for working with lists:
 
 ```
-{[1, 2, 3]} => { &0 } => { <~ Int } %% => 1 %%
+{[1, 2, 3]} => { &1 } => { <~ Int } %% => 1 %%
 ```
