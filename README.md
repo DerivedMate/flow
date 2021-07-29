@@ -4,9 +4,9 @@ CPS styled, interpreted programming language with no compile time checks, and ex
 
 ## History
 
-The initial idea was born on the [Cave of Linguists](https://discord.me/cave-of-linguists) discord server. Pioneering work was done by the user of name waterboi who introduced the original syntax. His implementation can be found under [thomaskoppelaar/flow](https://github.com/thomaskoppelaar/flow).
+The initial idea was born in the [Cave of Linguists](https://discord.me/cave-of-linguists) discord server. Pioneering work was done by the user of name waterboi who introduced the original syntax. His implementation can be found under [thomaskoppelaar/flow](https://github.com/thomaskoppelaar/flow).
 
-The following implementation further diverged from the aforementioned ones, yet has maintained the original spirit.
+The following implementation further diverged from the aforementioned one, yet has maintained the original spirit.
 
 ## Installation
 
