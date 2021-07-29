@@ -37,7 +37,7 @@ The main idea behind flow is the flow of data between *"cells"*. Each cell is ei
 1. a function: `{ ~add: a(Int), b(Int) = + a b }`;
 1. or an IO operation: `{ <~ List<Int> }`.
 
-The flow from one cell to another is denoted by `=>`:
+Flow from one cell to another is denoted by `=>`:
 
 ```
 {(1; 3)} => { ~add: a(Int), b(Int) = + a b }
@@ -52,7 +52,7 @@ Current data types include:
 
 | Name      | Examples                |
 | --------- | ----------------------- |
-| Int       | `1`, `+3`, `-42`;       | 
+| Int       | `1`, `+3`, `-42`        | 
 | Float     | `3.1415`, `2.`          | 
 | Str       | `` `Hello` ``           |
 | Bool      | `True`, `False`         | 
@@ -93,7 +93,7 @@ Flow uses prefix notation for binary operations. If an operation is not defined 
 | equal                 | `==`   |
 | not equal             | `/=`   |
 | and                   | `&&`   |
-| or                    | `\|\|`   |
+| or                    | `\|\|` |
 
 ## Functions
 
@@ -199,6 +199,27 @@ Current modifiers include:
 { 3 } => gen ~iter => { <~ Int } %% => 3 2 1     %%
 ```
 
+## IO
+
+At the moment, IO operations only support stdio, yet further extensions are planned. IO is clearly divided into:
+
+1. Input - going *with* the flow; therefore, the arrow points to the right: `{ ~> type }`, returning `type`;
+2. Output - *against* the flow with the arrow pointing to the left: `{ <~ type }`, returning `nil`.
+
+All IO operations require explicit casting.
+Currently IO operations are executed sequentially, in the order of occurrence:
+
+```
+{(~> Int; ~> Int)} => { a, b = - a b } => { <~ Int }
+%%
+input: 
+3
+1
+output:
+2
+%%
+```
+
 ## Capturing
 
 Capturing can be employed to use the results of the previous flow, without explicitly defining variables. For example, instead of defining the `~add` function, we can write:
@@ -235,5 +256,5 @@ The latter gets rid of dummy variable declarations.
 Capturing can also be used for working with lists:
 
 ```
-{[1, 2, 3]} => { &0 } => { <~ Int }
+{[1, 2, 3]} => { &0 } => { <~ Int } %% => 1 %%
 ```

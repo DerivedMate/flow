@@ -1,0 +1,11 @@
+{ ~isEven: n(Int) = 
+    == 0 (% n 2) | True
+                 | False
+}
+{ ~f: n(Int) = 
+    {n} => ~isEven | `It's Even`
+                   | `It's Odd`
+}
+
+{ 4 } => ~f => { <~ Str } %% => `It's Even` %%
+{ 1 } => ~f => { <~ Str } %% => `It's Odd`  %%
