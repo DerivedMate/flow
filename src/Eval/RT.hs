@@ -7,6 +7,7 @@ import           Data.List
 import           Data.Maybe
 import           Debug.Pretty.Simple
 import           Helper.AssocMap
+import           Lexer
 import           Syntax
 
 data RTVal
@@ -22,7 +23,7 @@ data RTVal
 instance Show RTVal where
   show (RTInt    a) = show a
   show (RTFloat  a) = show a
-  show (RTString a) = "`" <> a <> "`"
+  show (RTString a) = a
   show (RTBool   a) = show a
   show (RTList   l) = "[" <> intercalate ", " (map show l) <> "]"
   show (RTTuple  t) = "(" <> intercalate ", " (map show t) <> ")"
@@ -94,8 +95,9 @@ cast TFloat a = let RTInt i = cast TInt a in RTFloat (fromIntegral i)
 -- Truthiness
 cast TBool        (RTInt    a)             = RTBool (a /= 0)
 cast TBool        (RTFloat  f)             = RTBool (f /= 0.0)
-cast TBool        (RTString s)             = RTBool (s /= "")
+cast TBool (RTString s) = RTBool (s `notElem` ["", "\r\n", "\r", "\n"])
 cast TBool        (RTList   l)             = RTBool (not $ null l)
+cast TBool        RTNil                    = RTBool False
 
 -- String Cast
 cast TString      a                        = RTString (show a)
@@ -112,9 +114,37 @@ cast TAny a = a
 cast t    a = error ("Unmatched type cast: " <> show a <> " -> " <> show t)
 
 rtParse :: Type -> String -> RTVal
-rtParse TInt   s   = RTInt (read s :: Int)
-rtParse TFloat s   = RTFloat (read s :: Double)
-rtParse from   str = undefined
+rtParse t s
+  | null s = RTNil
+  | Just (e, "") <- parseResult = rtOfExp e
+  | Just (_, rest) <- parseResult = error
+    ("Incomplete rtParse: " <> s <> "(" <> rest <> "); as: " <> show t)
+  | otherwise = error ("Failed to rtParse: " <> s <> "; as: " <> show t)
+ where
+
+  parserOfType :: Type -> Parser Exp
+  parserOfType t
+    | TInt <- t = int
+    | TFloat <- t = float
+    | TString <- t = LString
+    <$> many (pre (\c -> isLatin1 c && (c `notElem` definiteSeps)))
+    | TBool <- t = bool
+    | (TList tt) <- t = LList
+    <$> sepBy (token (pre (`elem` definiteSeps))) (token (parserOfType tt))
+    | TAny <- t = expr
+    | (TFunc _ _) <- t = func
+    where definiteSeps = ",;.\t"
+
+  rtOfExp :: Exp -> RTVal
+  rtOfExp (  LTuple  []) = RTNil
+  rtOfExp (  LInt    a ) = RTInt a
+  rtOfExp (  LFloat  a ) = RTFloat a
+  rtOfExp (  LBool   a ) = RTBool a
+  rtOfExp (  LString a ) = RTString a
+  rtOfExp (  LList   as) = RTList (fmap rtOfExp as)
+  rtOfExp f@(Func{}    ) = cast t $ RTFunc f
+
+  parseResult = runParser (parserOfType t) s
 
 typeOfRt :: RTVal -> Type
 typeOfRt (  RTInt    _                             ) = TInt
@@ -129,7 +159,7 @@ typeOfRt r@(RTFunc   (Cell _ (Func _ (a : args) _))) = foldr
   TAny
   where aux a f = TFunc (f (argType a))
 
-typeOfRt r = error "Unknown typeOfRt"
+typeOfRt r = pTraceShow r $ error ("Unknown typeOfRt: " <> show r)
 
 
 -- Cast the latter to the type of the former

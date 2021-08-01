@@ -1,0 +1,22 @@
+%% Literals %%
+{ ~> Int   } => { <~ Int   }
+{ ~> Str   } => { <~ Str   }
+{ ~> Float } => { <~ Float }
+{ ~> Bool  } => { <~ Bool  }
+
+%% Lists %%
+{ ~> List      } => { <~ List      }
+{ ~> List<Str> } => { <~ List<Str> }
+
+%% Multiple Lines %%
+{ 5 } => unfold 
+         { left = 
+            > left 0 | (~> Int; - left 1) 
+         } 
+      => { <~ List<Int> }
+
+%% All the lines %%
+   { ~> Any } 
+=> unfold { a = a | (a; ~> Any) }
+=> { <~ List<Any> }
+

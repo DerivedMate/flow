@@ -16,7 +16,7 @@ correct=0
 wrong=0
 
 printf "[pre :: build]: start\n"
-stack build --silent
+stack build 
 printf "[pre :: build]: done\n"
 
 

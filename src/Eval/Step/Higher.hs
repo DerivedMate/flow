@@ -1,9 +1,13 @@
 module Eval.Step.Higher where
 
+import           Data.Bifunctor                 ( Bifunctor(bimap) )
 import           Data.Functor
+import           Data.List
+import           Debug.Pretty.Simple
 import           Eval.RT
 import           Eval.Step.Common
 import           Syntax
+
 
 stepHigher :: StepFunction -> StepFunction
 stepHigher step (Cell MNone a) s = step a s
@@ -68,31 +72,64 @@ stepHigher step (Cell MKeepEnum e) s =
   rewrap vs = [Datum Nil (s { stLast = (wrapperOfState . stLast) s vs })]
 
 
-stepHigher step (Cell MGen a     ) s  = pure [Datum (Anchor MGen a a) s]
-stepHigher step (Anchor MGen e0 e) s0 = step e s0 >>= aux
+stepHigher step (Cell MGen a     ) s  = pure [Datum (Anchor AGen a a) s]
+stepHigher step (Anchor AGen e0 e) s0 = step e s0 >>= aux
  where
   aux :: [Datum] -> IO [Datum]
   aux ds = mapM discriminant ds <&> concat
 
   discriminant :: Datum -> IO [Datum]
-  discriminant d | Datum Nil s' <- d = (pure . matchResult) s'
-                 | Datum e' s' <- d  = pure [Datum (Anchor MGen e0 e') s']
+  discriminant d | Datum Nil s' <- d = (pure . matchGenResult) s'
+                 | Datum e' s' <- d  = pure [Datum (Anchor AGen e0 e') s']
 
-  matchResult :: State -> [Datum]
-  matchResult s
+  matchGenResult :: State -> [Datum]
+  matchGenResult s
     | RTTuple [y, k, RTBool doEmit] <- l, doEmit
     = [ Datum Nil                 (s { stLast = y })
-      , Datum (Anchor MGen e0 e0) (s0 { stLast = k })
+      , Datum (Anchor AGen e0 e0) (s0 { stLast = k })
       ]
     | RTTuple [y, k] <- l
-    = matchResult $ s { stLast = RTTuple [y, k, RTBool True] }
+    = matchGenResult $ s { stLast = RTTuple [y, k, RTBool True] }
     | RTTuple [y] <- l
-    = matchResult $ s { stLast = RTTuple [y, y, RTBool True] }
+    = matchGenResult $ s { stLast = RTTuple [y, y, RTBool True] }
     | RTNil <- l
     = []
     | r <- l
-    = matchResult $ s { stLast = RTTuple [r, r, RTBool True] }
+    = matchGenResult $ s { stLast = RTTuple [r, r, RTBool True] }
     where l = stLast s
+
+stepHigher step (Cell MUnfold e0) s0 =
+  stepHigher step (Anchor AUnfold e0 e0) s0
+stepHigher step (Anchor AUnfold e0 e) s0 = manage [] [Datum e s0] <&> wrap
+ where
+  wrap :: [RTVal] -> [Datum]
+  wrap vs = [Datum Nil s0 { stLast = RTList vs }]
+
+  iter :: Datum -> IO [Datum]
+  iter (Datum e s) = step e s
+
+  manage :: [RTVal] -> [Datum] -> IO [RTVal]
+  manage acc ds | null ds'  = (pure . reverse) (acc' <> acc)
+                | otherwise = mapM iter ds' >>= manage (acc' <> acc) . concat
+    where (acc', ds') = (bimap concat concat . unzip . fmap aggregate) ds
+
+  matchResult :: RTVal -> (RTVal, RTVal, Bool)
+  matchResult (RTTuple [y, k, doEmit]) =
+    let RTBool doEmit' = cast TBool doEmit in (y, k, doEmit')
+  matchResult (RTTuple [y, k]) = (y, k, True)
+  matchResult RTNil            = (RTNil, RTNil, False)
+  matchResult r                = (r, r, True)
+
+  aggregate :: Datum -> ([RTVal], [Datum])
+  aggregate d
+    | isDone d, (y, k, True) <- l d  = ([y], [Datum e0 s0 { stLast = k }])
+    | isDone d, (_, _, False) <- l d = ([], [])
+    | otherwise                      = ([], [d])
+   where
+    isDone = (== Nil) . datumExp
+    l      = matchResult . stLast . datumState
+
+
 
 
 stepHigher _ d _ = error $ "Unmatched expression in `stepHigher`: \n" <> show d

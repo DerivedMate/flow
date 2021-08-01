@@ -9,3 +9,4 @@
 2021-07-28 18:35:05.355937091000 [123312(ThreadId 9)] ERROR APP - user error (variable id:11 not found.)
 2021-07-28 18:36:23.812206617000 [123312(ThreadId 8)] WARNING REQUEST - unsupported request command. {"command":"stepOut","arguments":{"threadId":0},"type":"request","seq":101}
 2021-07-28 18:36:28.938733680000 [123312(ThreadId 8)] WARNING REQUEST - unsupported request command. {"command":"stepOut","arguments":{"threadId":0},"type":"request","seq":102}
+2021-08-01 14:05:27.729521735000 [20333(ThreadId 8)] CRITICAL REQUEST - invalid HANDLE. eof.

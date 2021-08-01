@@ -31,7 +31,7 @@ step d@(BinOp _ _ _    ) s = stepLiteral step d s
 :--------------------------------}
 
 step d@(Cell _ _       ) s = stepHigher step d s
-step d@(Anchor MGen _ _) s = stepHigher step d s
+step d@(Anchor _ _ _) s = stepHigher step d s
 
 
 {--------------------------------:

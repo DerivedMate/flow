@@ -2,12 +2,16 @@ module Syntax where
 import           Control.Applicative
 import           Control.Monad
 import           Data.Char
+import           Data.Functor
 import           Lexer
 import           PreProcessor
 import           System.IO
 import           Text.Pretty.Simple
-import Data.Functor
 
+data AnchorType
+  = AGen
+  | AUnfold
+  deriving ( Show, Eq )
 
 data FMod
   = MNone
@@ -16,6 +20,7 @@ data FMod
   | MKeep
   | MGen
   | MFold
+  | MUnfold
   deriving ( Show, Eq )
 
 data Type
@@ -79,7 +84,7 @@ data Exp
   | Flow Exp Exp
   | FRef String
   | Program Exp Exp
-  | Anchor FMod Exp Exp
+  | Anchor AnchorType Exp Exp
   deriving ( Show, Eq )
 
 
@@ -140,19 +145,21 @@ tuple = LTuple <$> enclosed
 pType :: Parser Type
 pType = _pFunc <|> simple
   where
-    simple =  (TInt    <$  token (string "Int"))
+    simple =  (TInt    <$  token (string "Int"  ))
           <|> (TFloat  <$  token (string "Float"))
-          <|> (TString <$  token (string "Str"))
-          <|> (TBool   <$  token (string "Bool"))
-          <|> (TList   <$> _pList)
-    _pList = string "List" *> enclosed (char '<') (char '>') (token pType)
+          <|> (TString <$  token (string "Str"  ))
+          <|> (TBool   <$  token (string "Bool" ))
+          <|> (TList   <$> _pList                )
+          <|> (TAny    <$  token (string "Any"  ))
+    _pList =  string "List" *> enclosed (char '<') (char '>') (token pType)
+          <|> string "List" $> TAny
     _pFunc =
           do
             a <- token simple
             _ <- token ( string "->" )
             b <- token _pFunc
             return ( TFunc a b )
-      <|> simple
+          <|> simple
 
 
 
@@ -210,6 +217,7 @@ fMod =  (MMap      <$ token ( string "map"    ))
     <|> (MKeep     <$ token ( string "keep"   ))
     <|> (MGen      <$ token ( string "gen"    ))
     <|> (MFold     <$ token ( string "fold"   ))
+    <|> (MUnfold   <$ token ( string "unfold" ))
 
 func :: Parser Exp
 func =
@@ -302,7 +310,7 @@ operator = foldl1 (<|>) $ aux <$> ops
           ]
 
 var :: Parser Exp
-var = 
+var =
       (Var . ('&':) <$> (string "&" *> natural <&> show))
   <|> (Var <$> identifier)
 
