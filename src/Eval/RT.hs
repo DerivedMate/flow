@@ -271,12 +271,6 @@ getVarF :: String -> Frame -> Maybe RTVal
 getVarF = lookup
 
 getVar :: String -> State -> Maybe RTVal
-getVar ('&' : k) s | index == 0            = Just (stLast s)
-                   | index <= length scope = Just (scope !! (index - 1))
-                   | otherwise             = Nothing
- where
-  scope = (deTuple . stLast) s
-  index = read k :: Int
 getVar k s = foldl aux Nothing (stStack s) where aux a f = a <|> getVarF k f
 
 correctLast :: [Arg] -> [Datum] -> [Datum]
@@ -300,5 +294,7 @@ deTuple (RTString s) = map (RTString . (: [])) s
 deTuple a            = [a]
 
 wrapperOfState :: RTVal -> ([RTVal] -> RTVal)
-wrapperOfState (RTTuple _) = RTTuple
-wrapperOfState _           = RTList
+wrapperOfState (RTTuple  _) = RTTuple
+wrapperOfState (RTString _) = RTString . concatMap stringify
+  where stringify r = let RTString s = cast TString r in s
+wrapperOfState _ = RTList

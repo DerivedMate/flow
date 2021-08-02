@@ -57,7 +57,18 @@ stepFunc step (FRef k) s = do
 
 stepFunc _ (Var k) s | Just (RTFunc f) <- v = pure [Datum f s]
                      | Just vv <- v = pure [Datum Nil s { stLast = vv }]
-                     | otherwise = error ("vartiable '" <> k <> "' not found")
+                     | otherwise = error ("variable '" <> k <> "' not found")
   where v = getVar k s
+
+stepFunc step (Capture f t) s
+  | f == t, f < lastLength s = pure [Datum Nil s { stLast = scope !! f }]
+  | otherwise = pure
+    [Datum Nil s { stLast = (wrapperOfState . stLast) s (subset scope) }]
+ where
+  subset | t /= -1   = take (t - f + 1) . drop f
+         | otherwise = drop f
+  scope      = (deTuple . stLast) s
+  lastLength = rtLength . stLast
+
 
 stepFunc _ d _ = error $ "Unmatched expression in `stepFunc`: \n" <> show d

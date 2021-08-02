@@ -4,7 +4,7 @@ CPS styled, interpreted programming language with no compile time checks, and ex
 
 ## History
 
-The initial idea was born in the [Cave of Linguists](https://discord.me/cave-of-linguists) discord server. Pioneering work was done by the user of name waterboi who introduced the original syntax. His implementation can be found under [thomaskoppelaar/flow](https://github.com/thomaskoppelaar/flow).
+The initial idea was born on the [Cave of Linguists](https://discord.me/cave-of-linguists) discord server. Pioneering work was done by the user of name waterboi who introduced the original syntax. His implementation can be found under [thomaskoppelaar/flow](https://github.com/thomaskoppelaar/flow).
 
 The following implementation further diverged from the aforementioned one, yet has maintained the original spirit.
 
@@ -28,6 +28,10 @@ stack run -- file/path
 ```
 
 where the preferred file extension is `.hf`.
+
+## Syntax highlighting
+
+A vscode extension for syntax highlighting can be found under [flow-highlight](https://github.com/DerivedMate/flow-highlight). For the time being, the only way of installing it is to clone it to `~/.vscode/extensions/flow-highlight`.
 
 ## Basic concepts
 
@@ -225,14 +229,15 @@ output:
 Capturing can be employed to use the results of the previous flow, without explicitly defining variables. For example, instead of defining the `~add` function, we can write:
 
 ```
-{(1; 3)} => { + &1 &2 } => { <~ Int } %% => 4 %%
+{(1; 3)} => { + &0 &1 } => { <~ Int } %% => 4 %%
 ```
 
-Expression `&i` for a natural number `i` refers to the i-th argument. `&0` refers to the entire argument (/collection):
+Expression `&i` for a natural number `i` refers to the (i-1)-th argument.
+Slicing is also available through `&i:j`. Zero indexed, both inclusive. `j` can be omitted to capture the remainder.
 
 ```
-{(1; 3)} => {[&0, &0]}       %% [(1; 3), (1; 3)] %%
-         => map { + &1 &2 }  %% [4, 4]           %%
+{(1; 3)} => {[&0:, &0:]}     %% [(1; 3), (1; 3)] %%
+         => map { + &0 &1 }  %% [4, 4]           %%
          => { <~ List<Int> }
 ```
 
@@ -251,17 +256,11 @@ However, where this feature truly comes in handy is in nested generators. Consid
     => { <~ List<Int> }
 
 {[3, 2, 1]} 
-    => map {{&1} => gen { 
-            {&1} => gen ~iter 
-                 => {(&1; - &1 1)} 
+    => map {{&0} => gen {
+            {&0} => gen ~iter
+                 => {(&0; - &0 1)}
             }}
     => { <~ List<Int> }
 ```
 
 The latter gets rid of dummy variable declarations.
-
-Capturing can also be used for working with lists:
-
-```
-{[1, 2, 3]} => { &1 } => { <~ Int } %% => 1 %%
-```

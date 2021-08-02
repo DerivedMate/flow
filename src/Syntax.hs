@@ -1,3 +1,5 @@
+{-# LANGUAGE TupleSections #-}
+
 module Syntax where
 import           Control.Applicative
 import           Control.Monad
@@ -77,6 +79,7 @@ data Exp
   | LList [Exp]
   | LTuple [Exp]
   | Var String
+  | Capture Int Int
   | Label String
   | Cell FMod Exp
   | Func (Maybe String) [Arg] FuncExp
@@ -311,7 +314,10 @@ operator = foldl1 (<|>) $ aux <$> ops
 
 var :: Parser Exp
 var =
-      (Var . ('&':) <$> (string "&" *> natural <&> show))
+      (Capture <$> (string "&" *> natural) 
+               <* string ":" 
+               <*> (natural <|> pure (-1)))
+  <|> ((\a -> Capture a a) <$> (string "&" *> natural))
   <|> (Var <$> identifier)
 
 binaryOp :: Parser Exp
