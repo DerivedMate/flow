@@ -174,6 +174,8 @@ Current modifiers include:
 | keep      | uses the function as a predicate: if it's `False`, the flow stops; if `True` - continues unchanged                        |
 | keep[]    | like `keep`, but acts on every element of a collection (same as in `map`)                                                 |
 | gen       | yields a value, and calls itself. Creates new flows from a single element                                                 |
+| fold      | folds (left to right) a list of elements together with an accumulator. Returns the accumulator                            |
+| unfold    | collects yields of the inner generator                                                                                    |
 
 #### map
 
@@ -201,6 +203,60 @@ Current modifiers include:
 { 3 } => map { n = {n} => gen ~iter }
       => { <~ List<Int> }        %% => [3, 2, 1] %%
 { 3 } => gen ~iter => { <~ Int } %% => 3 2 1     %%
+```
+
+#### fold
+
+```
+   {( 1; [1, 2, 3, 4] )} %% (initial; elements) %%
+=> fold
+   { ~prod: a(Int), n(Int) = * a n }
+   %%
+     | a | n | return   |
+     | 1 | 1 | 1*1 = 1  |
+     | 1 | 2 | 1*2 = 2  |
+     | 2 | 3 | 2*3 = 6  |
+     | 6 | 4 | 6*4 = 24 |
+
+     => 24
+   %%
+=> { <~ Int }
+```
+
+Fold can also accept multiple arguments:
+
+```
+   {( ``; [(`Hi`; `Alice`), (`Hello`; `Bob`)] )}
+=> fold
+   { acc, greeting, name =
+        + acc ( + (+ (+ greeting `, `) name) `! ` )
+   }
+=> { <~ Str }
+   %%
+    => Hi, Alice! Hello, Bob!
+   %%
+```
+
+#### unfold
+
+```
+%%
+    Finite Iterate version of factorial.
+    Returns iterations of factorial
+    from 1 to m.
+%%
+
+   {(1; ~> Int; 1)}
+=> unfold
+   { ~fact: n, m, acc =
+        <= n m | ( * n acc
+                 ; ( + n 1
+                   ; m
+                   ; * n acc
+                   )
+                 )
+   }
+=> { <~ List<Int> }
 ```
 
 ## IO

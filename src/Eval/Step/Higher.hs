@@ -98,6 +98,7 @@ stepHigher step (Anchor AGen e0 e) s0 = step e s0 >>= aux
     = matchGenResult $ s { stLast = RTTuple [r, r, RTBool True] }
     where l = stLast s
 
+
 stepHigher step (Cell MUnfold e0) s0 =
   stepHigher step (Anchor AUnfold e0 e0) s0
 stepHigher step (Anchor AUnfold e0 e) s0 = manage [] [Datum e s0] <&> wrap
@@ -113,13 +114,7 @@ stepHigher step (Anchor AUnfold e0 e) s0 = manage [] [Datum e s0] <&> wrap
                 | otherwise = mapM iter ds' >>= manage (acc' <> acc) . concat
     where (acc', ds') = (bimap concat concat . unzip . fmap aggregate) ds
 
-  matchResult :: RTVal -> (RTVal, RTVal, Bool)
-  matchResult (RTTuple [y, k, doEmit]) =
-    let RTBool doEmit' = cast TBool doEmit in (y, k, doEmit')
-  matchResult (RTTuple [y, k]) = (y, k, True)
-  matchResult RTNil            = (RTNil, RTNil, False)
-  matchResult r                = (r, r, True)
-
+  -- Separate results from circulating data
   aggregate :: Datum -> ([RTVal], [Datum])
   aggregate d
     | isDone d, (y, k, True) <- l d  = ([y], [Datum e0 s0 { stLast = k }])
@@ -129,7 +124,60 @@ stepHigher step (Anchor AUnfold e0 e) s0 = manage [] [Datum e s0] <&> wrap
     isDone = (== Nil) . datumExp
     l      = matchResult . stLast . datumState
 
+  -- Gen-style return correction
+  matchResult :: RTVal -> (RTVal, RTVal, Bool)
+  matchResult (RTTuple [y, k, doEmit]) =
+    let RTBool doEmit' = cast TBool doEmit in (y, k, doEmit')
+  matchResult (RTTuple [y, k]) = (y, k, True)
+  matchResult RTNil            = (RTNil, RTNil, False)
+  matchResult r                = (r, r, True)
 
+
+stepHigher step (Cell MFold e0) s0 = stepHigher
+  step
+  (Anchor AFold e0 e0)
+  (s0 { stLast = RTTuple [a0, xs] })
+  where (a0 : xs : _) = deTuple (stLast s0)
+
+stepHigher step (Anchor AFold e0 e) s
+  |
+  -- End fold
+    e == Nil
+  , (a, [_]) <- destState s
+  = pure [Datum Nil s { stLast = a }]
+  |
+
+  -- End iteration. Begin new fold
+    e == Nil
+  = let (a, _ : xs) = destState s
+    in  pure
+          [Datum (Anchor AFold e0 e0) (s { stLast = RTTuple [a, RTList xs] })]
+  |
+
+  -- First step. Apply (acc; ...x)
+    e == e0
+  = let (a, x : _) = destState s
+    in  step e (s { stLast = RTTuple (a : spreadX x) })
+          >>= mapM (pure . reAnchor)
+  |
+
+  -- Evaluate e in the inner context, and keep track of the main list
+    otherwise
+  = let (a, _) = destState s
+    in  step e (s { stLast = a }) >>= mapM (pure . reAnchor)
+ where
+  destState :: State -> (RTVal, [RTVal])
+  destState s = let RTTuple [a, RTList xs] = stLast s in (a, xs)
+
+  spreadX :: RTVal -> [RTVal]
+  spreadX (RTTuple xs) = xs
+  spreadX x            = [x]
+
+  reAnchor :: Datum -> Datum
+  reAnchor (Datum e' s') =
+    let (_, xs) = destState s
+    in  Datum (Anchor AFold e0 e')
+              (s' { stLast = RTTuple [stLast s', RTList xs] })
 
 
 stepHigher _ d _ = error $ "Unmatched expression in `stepHigher`: \n" <> show d

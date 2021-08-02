@@ -32,8 +32,8 @@ interactiveShell =
     = runFlow (parseString input) >> loop
 
 -- main :: IO ()
-main = -- pure $ rtParse (TList TInt) "[]" 
-       do
+main = -- runFlow $ parseString "{(0; [1,2,3])} => fold {+ &0 &1} => { <~ Any }" 
+  do
   args <- getArgs
   case args of
     []             -> interactiveShell
