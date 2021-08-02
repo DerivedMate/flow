@@ -27,11 +27,17 @@ It can be also used to run individual files:
 stack run -- file/path
 ```
 
-where the preferred file extension is `.hf`.
+Or as a repl:
+
+```sh
+stack run
+```
+
+The preferred file extension is `.hf`.
 
 ## Syntax highlighting
 
-A vscode extension for syntax highlighting can be found under [flow-highlight](https://github.com/DerivedMate/flow-highlight). For the time being, the only way of installing it is to clone it to `~/.vscode/extensions/flow-highlight`.
+A vscode extension for syntax highlighting can be found under [flow-highlight](https://github.com/DerivedMate/flow-highlight). For the time being, the only way to install it is to clone it to `~/.vscode/extensions/flow-highlight`.
 
 ## Basic concepts
 
@@ -288,7 +294,7 @@ Capturing can be employed to use the results of the previous flow, without expli
 {(1; 3)} => { + &0 &1 } => { <~ Int } %% => 4 %%
 ```
 
-Expression `&i` for a natural number `i` refers to the (i-1)-th argument.
+Expression `&i` for a natural number `i` refers to the (i+1)-th argument.
 Slicing is also available through `&i:j`. Zero indexed, both inclusive. `j` can be omitted to capture the remainder.
 
 ```
