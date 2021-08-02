@@ -3,6 +3,8 @@ import           Data.List
 import           Eval
 import           Eval.RT
 import           Syntax
+import           System.Directory.Internal.Prelude
+                                                ( fromMaybe )
 import           System.Environment
 import           System.IO
 
@@ -31,15 +33,13 @@ interactiveShell =
     | otherwise
     = runFlow (parseString input) >> loop
 
--- main :: IO ()
-main = -- runFlow $ parseString "{(0; [1,2,3])} => fold {+ &0 &1} => { <~ Any }" 
-  do
-  args <- getArgs
-  case args of
-    []             -> interactiveShell
-    (filePath : _) -> parseFile filePath >>= runFlow
-
-
-testMain :: IO ()
-testMain = do
-  pure (rtParse (TList TInt) "[1, 2] 3") *> pure ()
+main :: IO ()
+main = do
+  isDev <- (== Just "dev") <$> lookupEnv "production"
+  if isDev
+    then runFlow $ parseString "{~x:= 1} {~y:= 2} {+ x y} => { <~ Int }"
+    else do
+      args <- getArgs
+      case args of
+        []             -> interactiveShell
+        (filePath : _) -> parseFile filePath >>= runFlow
