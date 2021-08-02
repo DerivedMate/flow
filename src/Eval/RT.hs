@@ -89,6 +89,8 @@ cast TInt (RTString s) | all isNumber s = RTInt (read s)
 cast TInt         (RTBool True )           = RTInt 1
 cast TInt         (RTBool False)           = RTInt 0
 
+cast TInt         (RTList ls)              = RTInt (length ls)
+
 -- Float Cast
 cast TFloat       (RTInt  i    )           = RTFloat $ fromIntegral i
 cast TFloat a = let RTInt i = cast TInt a in RTFloat (fromIntegral i)

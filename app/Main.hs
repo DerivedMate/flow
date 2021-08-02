@@ -35,9 +35,9 @@ interactiveShell =
 
 main :: IO ()
 main = do
-  isDev <- (== Just "dev") <$> lookupEnv "production"
+  isDev <- (== Just "dev") <$> lookupEnv "FENV"
   if isDev
-    then runFlow $ parseString "{~x:= 1} {~y:= 2} {+ x y} => { <~ Int }"
+    then parseFile "test/example/pg.hf" >>= runFlow
     else do
       args <- getArgs
       case args of

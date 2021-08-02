@@ -19,6 +19,8 @@ printf "[pre :: build]: start\n"
 stack build 
 printf "[pre :: build]: done\n"
 
+sleep "0.1s"
+
 
 for f in $(ls "${testBase}/out")
 do

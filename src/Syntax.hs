@@ -133,7 +133,7 @@ list = LList <$> enclosed
                     (sepBy (token (char ','))
                       term
                     )
-     <|> string "[]" *> pure (LList [])
+     <|> token (char '[') *> token (char ']') $> LList []
 
 tuple :: Parser Exp
 tuple = LTuple <$> enclosed
@@ -142,7 +142,7 @@ tuple = LTuple <$> enclosed
                     (sepBy (token (char ';'))
                      term
                     )
-      <|> string "()" *> pure (LTuple [])
+      <|> token (char '(') *> token (char ')') $> LTuple []
 
 
 
