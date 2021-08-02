@@ -39,9 +39,9 @@ step d@(Anchor _ _ _) s = stepHigher step d s
 :--------------------------------}
 
 step d@(Func   _ _ _) s = stepFunc step d s
-step d@(FRef _      ) s = stepFunc step d s
-step d@(Var  _      ) s = stepFunc step d s
-step d@(Capture _ _ ) s = stepFunc step d s
+step d@(FRef    _   ) s = stepFunc step d s
+step d@(Var     _   ) s = stepFunc step d s
+step d@(Capture _   ) s = stepFunc step d s
 
 
 {--------------------------------:

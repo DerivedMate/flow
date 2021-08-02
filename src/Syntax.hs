@@ -10,9 +10,15 @@ import           PreProcessor
 import           System.IO
 import           Text.Pretty.Simple
 
+data CType
+  = CSingle Int
+  | CSlice Int (Maybe Int)
+  deriving ( Show, Eq )
+
 data AnchorType
   = AGen
   | AUnfold
+  | AFold
   deriving ( Show, Eq )
 
 data FMod
@@ -79,7 +85,7 @@ data Exp
   | LList [Exp]
   | LTuple [Exp]
   | Var String
-  | Capture Int Int
+  | Capture CType
   | Label String
   | Cell FMod Exp
   | Func (Maybe String) [Arg] FuncExp
@@ -314,10 +320,13 @@ operator = foldl1 (<|>) $ aux <$> ops
 
 var :: Parser Exp
 var =
-      (Capture <$> (string "&" *> natural) 
-               <* string ":" 
-               <*> (natural <|> pure (-1)))
-  <|> ((\a -> Capture a a) <$> (string "&" *> natural))
+      (CSlice 
+        <$> (string "&" *> natural) 
+        <* string ":" 
+        <*> optional natural
+        <&> Capture
+        )
+  <|> (Capture . CSingle <$> (string "&" *> natural))
   <|> (Var <$> identifier)
 
 binaryOp :: Parser Exp
