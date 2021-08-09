@@ -37,6 +37,9 @@ library
       Helper.AssocMap
       Lexer
       PreProcessor
+      Reduction.Nullable
+      Reduction.Reducer
+      Reduction.Static
       Syntax
   other-modules:
       Paths_flow

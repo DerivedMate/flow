@@ -61,25 +61,9 @@ stepFunc _ (Var k) s | Just (RTFunc f) <- v = pure [Datum f s]
                      | otherwise = error ("variable '" <> k <> "' not found")
   where v = getVar k s
 
-stepFunc step (Capture (CSlice f t)) s = pure
-  [Datum Nil s { stLast = (wrapperOfState . stLast) s (subset scope) }]
- where
-  t' = fromMaybe (-1) t
-  subset | t' /= -1  = take (t' - f + 1) . drop f
-         | otherwise = drop f
-  scope      = (deTuple . stLast) s
-  lastLength = rtLength . stLast
-
-stepFunc step (Capture (CSingle i)) s
-  | i < length scope = pure [Datum Nil s { stLast = scope !! i }]
-  | otherwise = error
-    (  "Cannot capture &"
-    <> show i
-    <> ": index exceeds scope length ("
-    <> show (length scope)
-    <> ")"
-    )
-  where scope = (deTuple . stLast) s
-
+stepFunc step (Capture c) s
+  | Right l'' <- l'     = pure [Datum Nil s { stLast = l'' }]
+  | Left errorMsg <- l' = error errorMsg
+  where l' = getCapture c s
 
 stepFunc _ d _ = error $ "Unmatched expression in `stepFunc`: \n" <> show d

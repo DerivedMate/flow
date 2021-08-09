@@ -37,7 +37,7 @@ main :: IO ()
 main = do
   isDev <- (== Just "dev") <$> lookupEnv "FENV"
   if isDev
-    then parseFile "test/example/pg.hf" >>= runFlow
+    then parseFile "test/pg.hf" >>= runFlow
     else do
       args <- getArgs
       case args of

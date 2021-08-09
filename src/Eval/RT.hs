@@ -63,6 +63,9 @@ data State = State
   }
   deriving (Show, Eq)
 
+emptyState :: State
+emptyState = State { stLast = RTNil, stStack = [] }
+
 data Datum = Datum
   { datumExp   :: Exp
   , datumState :: State
@@ -89,7 +92,7 @@ cast TInt (RTString s) | all isNumber s = RTInt (read s)
 cast TInt         (RTBool True )           = RTInt 1
 cast TInt         (RTBool False)           = RTInt 0
 
-cast TInt         (RTList ls)              = RTInt (length ls)
+cast TInt         (RTList ls   )           = RTInt (length ls)
 
 -- Float Cast
 cast TFloat       (RTInt  i    )           = RTFloat $ fromIntegral i
@@ -118,12 +121,11 @@ cast t    a = error ("Unmatched type cast: " <> show a <> " -> " <> show t)
 rtParse :: Type -> String -> RTVal
 rtParse t s
   | null s = RTNil
-  | Just (e, "") <- parseResult = rtOfExp e
+  | Just (e, "") <- parseResult = rtOfExp t e
   | Just (_, rest) <- parseResult = error
     ("Incomplete rtParse: " <> s <> "(" <> rest <> "); as: " <> show t)
   | otherwise = error ("Failed to rtParse: " <> s <> "; as: " <> show t)
  where
-
   parserOfType :: Type -> Parser Exp
   parserOfType t
     | TInt <- t = int
@@ -137,16 +139,27 @@ rtParse t s
     | (TFunc _ _) <- t = func
     where definiteSeps = ",;.\t"
 
-  rtOfExp :: Exp -> RTVal
-  rtOfExp (  LTuple  []) = RTNil
-  rtOfExp (  LInt    a ) = RTInt a
-  rtOfExp (  LFloat  a ) = RTFloat a
-  rtOfExp (  LBool   a ) = RTBool a
-  rtOfExp (  LString a ) = RTString a
-  rtOfExp (  LList   as) = RTList (fmap rtOfExp as)
-  rtOfExp f@(Func{}    ) = cast t $ RTFunc f
-
   parseResult = runParser (parserOfType t) s
+
+rtOfExp :: Type -> Exp -> RTVal
+rtOfExp _ (  LTuple  []) = RTNil
+rtOfExp _ (  LInt    a ) = RTInt a
+rtOfExp _ (  LFloat  a ) = RTFloat a
+rtOfExp _ (  LBool   a ) = RTBool a
+rtOfExp _ (  LString a ) = RTString a
+rtOfExp t (  LList   as) = RTList (fmap (rtOfExp t) as)
+rtOfExp t f@(Func{}    ) = cast t $ RTFunc f
+
+expOfRt :: RTVal -> Exp
+expOfRt (RTInt    a ) = LInt a
+expOfRt (RTFloat  a ) = LFloat a
+expOfRt (RTString a ) = LString a
+expOfRt (RTBool   a ) = LBool a
+expOfRt (RTTuple  ls) = LTuple $ map expOfRt ls
+expOfRt (RTList   ls) = LList $ map expOfRt ls
+expOfRt (RTFunc   f ) = f
+expOfRt RTNil         = Nil
+
 
 typeOfRt :: RTVal -> Type
 typeOfRt (  RTInt    _                             ) = TInt
@@ -274,6 +287,26 @@ getVarF = lookup
 
 getVar :: String -> State -> Maybe RTVal
 getVar k s = foldl aux Nothing (stStack s) where aux a f = a <|> getVarF k f
+
+getCapture :: CType -> State -> Either String RTVal
+getCapture (CSlice f t) s = Right $ (wrapperOfState . stLast) s (subset scope)
+ where
+  t' = fromMaybe (-1) t
+  subset | t' /= -1  = take (t' - f + 1) . drop f
+         | otherwise = drop f
+  scope      = (deTuple . stLast) s
+  lastLength = rtLength . stLast
+
+getCapture (CSingle i) s
+  | i < length scope = Right $ scope !! i
+  | otherwise = Left
+    (  "Cannot capture &"
+    <> show i
+    <> ": index exceeds scope length ("
+    <> show (length scope)
+    <> ")"
+    )
+  where scope = (deTuple . stLast) s
 
 correctLast :: [Arg] -> [Datum] -> [Datum]
 correctLast args [] = []

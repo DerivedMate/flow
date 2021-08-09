@@ -12,3 +12,16 @@
 2021-08-01 14:05:27.729521735000 [20333(ThreadId 8)] CRITICAL REQUEST - invalid HANDLE. eof.
 2021-08-02 21:55:28.299894093000 [23418(ThreadId 9)] ERROR APP - user error (variable id:10 not found.)
 2021-08-02 21:57:56.106057109000 [24181(ThreadId 9)] ERROR APP - user error (variable id:10 not found.)
+2021-08-09 17:46:00.659238540000 [38395(ThreadId 20)] CRITICAL REQUEST - invalid HANDLE. eof.
+2021-08-09 17:47:25.508933512000 [38557(ThreadId 21)] ERROR APP - user error (variable id:10 not found.)
+2021-08-09 17:47:34.097214075000 [38557(ThreadId 21)] CRITICAL APP - invalid dap result from ghci. []
+2021-08-09 17:48:03.335085957000 [38722(ThreadId 21)] ERROR APP - user error (variable id:10 not found.)
+2021-08-09 17:48:05.177049983000 [38722(ThreadId 21)] ERROR APP - user error (variable id:10 not found.)
+2021-08-09 17:48:29.005437749000 [38722(ThreadId 20)] CRITICAL REQUEST - invalid HANDLE. eof.
+2021-08-09 17:49:04.246768231000 [38861(ThreadId 20)] CRITICAL REQUEST - invalid HANDLE. eof.
+2021-08-09 21:27:51.615308321000 [54095(ThreadId 21)] ERROR APP - invalid dap result from ghci. []
+2021-08-09 21:27:51.616090084000 [54095(ThreadId 21)] ERROR APP - <file descriptor: 146>: hPutChar: resource vanished (Broken pipe)
+2021-08-09 21:27:51.616855326000 [54095(ThreadId 21)] ERROR APP - <file descriptor: 146>: hPutChar: resource vanished (Broken pipe)
+2021-08-09 21:27:52.071618622000 [54095(ThreadId 21)] ERROR APP - <file descriptor: 146>: hPutChar: resource vanished (Broken pipe)
+2021-08-09 21:27:55.028496966000 [54095(ThreadId 21)] ERROR APP - <file descriptor: 146>: hPutChar: resource vanished (Broken pipe)
+2021-08-09 21:28:02.016590004000 [54095(ThreadId 21)] CRITICAL APP - <file descriptor: 146>: hPutChar: resource vanished (Broken pipe)

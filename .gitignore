@@ -1,5 +1,5 @@
 .stack-work/
 *~
 node_modules
-test/example/pg.hf
+test/pg.hf
 dist-newstyle
