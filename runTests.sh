@@ -21,6 +21,15 @@ printf "[pre :: build]: done\n"
 
 sleep "0.1s"
 
+function runTest () {
+    local f=$1
+    local input=$2
+    local output=$3
+    local src=$4
+    local optLvl=$5
+
+    
+}
 
 for f in $(ls "${testBase}/out")
 do

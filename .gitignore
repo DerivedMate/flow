@@ -3,3 +3,4 @@
 node_modules
 test/pg.hf
 dist-newstyle
+test/aux

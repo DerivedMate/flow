@@ -6,7 +6,7 @@ import           Syntax
 
 {-
   Given an expression in context (State),
-  determine if it's nullable (=not executed/-able).
+  determine if it's nullable (=not executed/-able or ignored).
   If so, return Nil (+ optional info for the parent);
   otherwise, return the (potentially modified) node.
 

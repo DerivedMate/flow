@@ -3,6 +3,7 @@ module Eval.Step.Func where
 import           Data.Functor
 import           Data.List
 import           Data.Maybe
+import           Debug.Pretty.Simple
 import           Eval.RT
 import           Eval.Step.Common
 import           Syntax
@@ -24,31 +25,24 @@ stepFunc step node@(Func l args f_body) s =
         else (RTNil, assignVars (stLast s) args, True)
       f' = vars `union` fns
       s' = State { stLast = last, stStack = f' : stStack s }
-  in  if doRun then stepFExp f_body s' <&> fmap fixLast else pure [Datum Nil s']
+  in  if doRun then stepFExp f_body s' else pure [Datum Nil s']
  where
   stepFExp :: FuncExp -> State -> IO [Datum]
   stepFExp FNil         s = pure [Datum Nil s]
-  stepFExp (Single a  ) s = step a s
-  stepFExp (Cond c a b) s = step c s >>= mapM matchResult <&> concat
+  stepFExp (Single a  ) s = step (Anchor AClosure node a) s
+  stepFExp (Cond c a b) s = exhaust step c s >>= matchResult . cast TBool
    where
-    matchResult r
-      | Datum Nil s' <- r = case (cast TBool . stLast) s' of
-        RTBool True  -> step a s
-        RTBool False -> stepFExp b s
-        r            -> error
-          (  "Undefined boolean cast in func conditional:"
-          <> "\n[Cast]: "
-          <> show r
-          <> "\n[State]: "
-          <> show s
-          <> "\n[Condition]: "
-          <> show c
-          )
-      | Datum c' s' <- r = stepFExp (Cond c' a b) s'
-
-  fixLast :: Datum -> Datum
-  fixLast d | datumExp d == Nil = head $ correctLast args [d]
-            | otherwise         = d
+    matchResult (RTBool True ) = stepFExp (Single a) s
+    matchResult (RTBool False) = stepFExp b s
+    matchResult l              = error
+      (  "Undefined boolean cast in function conditional:"
+      <> "\n[Cast]: "
+      <> show l
+      <> "\n[State]: "
+      <> show s
+      <> "\n[Condition]: "
+      <> show c
+      )
 
 stepFunc step (FRef k) s = do
   if funcExists k s

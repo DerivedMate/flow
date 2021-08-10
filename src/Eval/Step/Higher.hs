@@ -33,14 +33,17 @@ stepHigher step (Cell MMap e) s0 =
                         | otherwise        = retire cs rs (c : bs)
 
 
-stepHigher step (Cell MKeep e) s = step e s >>= mapM aux <&> concat
+stepHigher step (Anchor AKeep v e) s
+  | e == Nil, RTBool True <- discriminant = pure [Datum Nil s { stLast = rtOfExp TAny v }]
+  | e == Nil, RTBool False <- discriminant = pure []
+  | otherwise = step e s <&> map reWrap
  where
-  discriminant r | RTBool d <- cast TBool r = d
-                 | otherwise = error "Non-bool cast in keep predicate"
+  reWrap :: Datum -> Datum
+  reWrap (Datum e' s') = Datum (Anchor AKeep v e') s'
+  discriminant = cast TBool (stLast s)
 
-  aux (Datum Nil s') | discriminant (stLast s') = pure [Datum Nil s]
-                     | otherwise                = pure []
-  aux (Datum e' s') = pure [Datum (Cell MKeep e') s']
+stepHigher step (Cell MKeep e) s =
+  stepHigher step (Anchor AKeep (expOfRt $ stLast s) e) s
 
 
 stepHigher step (Cell MKeepEnum e) s =
@@ -72,7 +75,7 @@ stepHigher step (Cell MKeepEnum e) s =
   rewrap vs = [Datum Nil (s { stLast = (wrapperOfState . stLast) s vs })]
 
 
-stepHigher step (Cell MGen a     ) s  = pure [Datum (Anchor AGen a a) s]
+stepHigher step (Cell MGen a     ) s  = step (Anchor AGen a a) s
 stepHigher step (Anchor AGen e0 e) s0 = step e s0 >>= aux
  where
   aux :: [Datum] -> IO [Datum]
@@ -80,7 +83,7 @@ stepHigher step (Anchor AGen e0 e) s0 = step e s0 >>= aux
 
   discriminant :: Datum -> IO [Datum]
   discriminant d | Datum Nil s' <- d = (pure . matchGenResult) s'
-                 | Datum e' s' <- d  = pure [Datum (Anchor AGen e0 e') s']
+                 | Datum e' s' <- d  = step (Anchor AGen e0 e') s'
 
   matchGenResult :: State -> [Datum]
   matchGenResult s
@@ -179,5 +182,10 @@ stepHigher step (Anchor AFold e0 e) s
     in  Datum (Anchor AFold e0 e')
               (s' { stLast = RTTuple [stLast s', RTList xs] })
 
+
+stepHigher step (Anchor AClosure (Func l args _) Nil) s =
+  pure [Datum Nil s] <&> (: []) . head . correctLast args
+stepHigher step (Anchor AClosure f e) s =
+  step e s <&> map (\(Datum e' s') -> Datum (Anchor AClosure f e') s')
 
 stepHigher _ d _ = error $ "Unmatched expression in `stepHigher`: \n" <> show d

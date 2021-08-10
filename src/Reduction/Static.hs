@@ -13,7 +13,6 @@ import           Reduction.Reducer
 import           Syntax
 import           Text.Pretty.Simple             ( pPrint )
 
-
 rTest :: Rd FuncExp Bool
 rTest = runReducer rStaticFuncExp
                    (emptyState { stLast = last, stStack = [vars] })
@@ -27,6 +26,10 @@ rTest = runReducer rStaticFuncExp
 rRunFile :: FilePath -> IO ()
 rRunFile path = parseFile path >>= runFlow . fmap
   (first (rdExp . runReducer rStaticExp emptyState))
+
+rTestFile :: FilePath -> IO ()
+rTestFile path = parseFile path >>= pPrint . fmap
+  (rdExp . runReducer rStaticExp emptyState . fst)
 
 rIoTestString :: String -> IO ()
 rIoTestString =
@@ -106,8 +109,8 @@ rStaticExp = Reducer aux
       in  if staticP && staticQ
             then Rd True s { stLast = l' } (expOfRt l')
             else Rd False s (BinOp op p' q')
-    | Cell m e' <- e
-    = let Rd v s' e'' = aux s e' in Rd v s' (Cell m e'')
+    | Cell MNone e' <- e
+    = let Rd v s' e'' = aux s e' in Rd v s' (Cell MNone e'')
     | Capture c <- e
     = case getCapture c s of
       Right l' -> Rd True (s { stLast = l' }) (expOfRt l')
@@ -120,11 +123,11 @@ rStaticExp = Reducer aux
           stack'                  = (fns <> vars) : stStack s
           s'                      = s { stLast = RTNil, stStack = stack' }
           Rd rfe s'' fe'          = runReducer rStaticFuncExp s' fe
-      in  Rd rfe s { stStack = fns : stStack s } (Func l leftArgs fe')
+      in  Rd rfe s' { stStack = fns : stStack s } (Func l leftArgs fe')
     | Flow p q <- e
     = let Rd rp s'  p' = aux s p
           Rd rq s'' q' = aux s' q
-      in  Rd (rp && rq) s'' (Flow p' q')
+      in  Rd (rp && rq) s (Flow p' q')
     | Program p q <- e
     = let Rd rp s'  p' = aux s { stLast = RTNil } p
           Rd rq s'' q' = aux (s' { stLast = RTNil }) q

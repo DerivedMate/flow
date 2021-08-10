@@ -19,6 +19,8 @@ data AnchorType
   = AGen
   | AUnfold
   | AFold
+  | AClosure
+  | AKeep
   deriving ( Show, Eq )
 
 data FMod

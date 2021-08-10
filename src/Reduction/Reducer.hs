@@ -38,3 +38,5 @@ instance Monad (Reducer e) where
 rVoid :: Reducer e ()
 rVoid = Reducer $ \s e -> Rd { rdVal = (), rdState = s, rdExp = e }
 
+optimize :: Reducer Exp v -> Exp -> Exp
+optimize r e = rdExp $ runReducer r emptyState e 
