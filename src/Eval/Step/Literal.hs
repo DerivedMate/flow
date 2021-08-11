@@ -31,6 +31,11 @@ stepLiteral step (BinOp op a b) s = do
   vb <- exhaust step b s
   pure [Datum Nil (s { stLast = fOfBop op va vb })]
 
+stepLiteral step (Casting e t) s = step e s <&> map matchResult
+ where
+  matchResult (Datum e s')
+    | Nil <- e  = Datum e (s' { stLast = cast t (stLast s') })
+    | otherwise = Datum (Casting e t) s'
 
 stepLiteral _ d _ =
   error $ "Unmatched expression in `stepLiteral`: \n" <> show d

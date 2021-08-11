@@ -1,0 +1,21 @@
+%% 
+** HackerRank sock problem
+** https://www.hackerrank.com/challenges/sock-merchant/problem 
+%% 
+
+{ ~len: ls(Int) = ls }
+{ ~null: ls = 
+  { ls } => ~len => { == &0 0 } 
+}
+{ ~count: el, list =
+  {[ list, - list [el] ]} => map ~len => { - &0 &1 }
+}
+{ ~F: socks, n_pairs =
+  {socks} => ~null 
+  | n_pairs
+  | {socks} => {(      &0      ;          &0:          )} 
+            => {( - socks [&0] ; + n_pairs (/ count 2) )}
+            => ~F
+}
+
+{( ~> List<Int> ; 0 )} => ~F => { <~ Int }

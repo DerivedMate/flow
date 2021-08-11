@@ -96,6 +96,7 @@ data Exp
   | FRef String
   | Program Exp Exp
   | Anchor AnchorType Exp Exp
+  | Casting Exp Type
   deriving ( Show, Eq )
 
 
@@ -202,7 +203,8 @@ cell =
         )
 
 term :: Parser Exp
-term = enclosed (char '(') (char ')') (token term)
+term = casting
+     <|> enclosed (char '(') (char ')') (token term)
      <|> io
      <|> literal
      <|> binaryOp
@@ -216,6 +218,24 @@ identifier = do
   <|> some (pre isLetter)
 
 
+casting :: Parser Exp
+casting = Casting 
+  <$> token (  enclosed 
+                 (char '(') (char ')') 
+                 (token subTerm)
+           <|> subTerm
+            )
+  <*  token (string "::")
+  <*> (  enclosed 
+           (char '(') (char ')') 
+           (token pType)
+     <|> token pType
+      ) 
+  where subTerm = io
+               <|> literal
+               <|> binaryOp
+               <|> token var
+            
 
 
 {--------------------------------:

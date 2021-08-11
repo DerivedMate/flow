@@ -108,11 +108,15 @@ cast TBool        RTNil                    = RTBool False
 cast TString      a                        = RTString (show a)
 
 cast (TFunc t ts) (RTFunc (Func l args e)) = RTFunc
-  (Cell MNone (Func l args' e))
+  (Flow
+    (Cell MNone (Func l args' e))
+    (Cell MNone (Func Nothing [Arg "$0" (last types)] (Single (Var "$0"))))
+  )
  where
   args' = zipWith aux (tFuncTypes ts [t]) args
+  types = tFuncTypes ts [t]
   tFuncTypes (TFunc t f) acc = tFuncTypes f (t : acc)
-  tFuncTypes t           acc = t : acc
+  tFuncTypes t           acc = reverse $ t : acc
   aux t (Arg n _) = Arg n t
 
 cast TAny a = a

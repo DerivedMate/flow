@@ -1,4 +1,4 @@
-{~> Int} 
+   {~> Int} 
 => gen {~range: n(Int) =
           > n 0   | (n; - n 1; True )
                   | (n; n    ; False)

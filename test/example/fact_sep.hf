@@ -1,5 +1,5 @@
 { ~fact: a(Int), b(Int) = 
-      > a 1 | {(- a 1 ; * a b)} => ~fact 
+      > a 1 | {( - a 1 ; * a b )} => ~fact 
             | { b } 
 } 
 {(~> Int; 1)} => {~fact} => {<~ Int}

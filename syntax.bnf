@@ -5,6 +5,9 @@
   <f_mod>     ::= 'map'  /* [a] -> { a -> b }       -> [b] */
                 | 'keep[]' /* [a] -> { a -> bool }  -> [a] */
                 | 'keep'  /* a -> { a -> bool }     ->  a  */
+                | 'unfold' /* a -> { a -> ( yield (b)
+                                          ; next_seed (a)
+                                          ) } -> [b] */
                 | 'gen'  /*  a  -> { seed (a) = 
                                       ( yield (b)
                                       ; next_seed (a)
@@ -13,7 +16,8 @@
                 /*  _       a   -> { a -> b }       -> b   */
 <exp>        ::= <flow> | <term> 
   <binary_op>  ::= <operator> <term> <term>
-    <term>       ::= <io> | <literal> | <binary_op> | <var>
+    <term>       ::= <io> | <cast> | <literal> | <binary_op> | <var>
+    <cast>       ::= <term> :: <type>
     <operator>   ::= '+' | '-' | '*' | '/' | '^' | '&&' | '||' | '%'
     <literal>    ::= <str> | <list> | <tuple> | <int> | <float> | <bool>
     <int>        ::= '+' <natural> | '-' <natural> | <natural>
