@@ -1,6 +1,6 @@
 # Flow
 
-CPS styled, interpreted programming language with no compile time checks, and exclusively runtime errors.
+CPS styled, interpreted, dangerously dynamically typed programming language with no compile time checks, and exclusively runtime errors.
 
 ## History
 
@@ -68,6 +68,7 @@ Current data types include:
 | Bool      | `True`, `False`         |
 | tuple\*   | `(1; 3)`                |
 | List\<T\> | `[1, 2, 3]`, `[4, 5.0]` |
+| Any       | anything                |
 
 > \*tuples, for the time being, are treated as data carriers instead of proper data types. Recall how we destructured `(1; 3)` in the previous example
 
@@ -81,6 +82,24 @@ In general, data is weakly typed, unless the type is explicitly stated:
 {(`Hello`; ` World`)} => ~combine => { <~ Str } %% => `Hello World` %%
 {(`7`; `11`)}         => ~combine => { <~ Int } %% => 711           %%
 {(`7`; `11`)}         => ~add     => { <~ Int } %% => 18            %%
+```
+
+## Casting
+
+Flow allows for two kinds of casting: of arguments, and of variables. The former take form of specifying the arguments' types:
+
+```
+{ ~add: a(Int), b(Int) = %% ... %% }
+```
+
+The latter regard variables, and can be used like normal expressions:
+
+```
+{ + 2 5 :: Float } %% == { + 2 (5 :: Float) } %%
+{ ~add: a, b = + a b }
+   => { &0 :: (Any -> Any -> Int) }
+   => { f = {( [1, 2, 3]; [4, 5] )} => ~f  }
+   => { <~ Str } %% => 5 %%
 ```
 
 ## Binary operations
