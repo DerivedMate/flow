@@ -79,7 +79,7 @@ do
     output="${testBase}/out/${base}.out"
     src="${testBase}/src/${base}.hf"
 
-    execTest $f $input $output $src 
+    execTest $base $input $output $src 
 done
 
 echo "errors: $wrong; correct: $correct; total: $((wrong + correct))"

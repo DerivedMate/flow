@@ -10,7 +10,7 @@ import           Debug.Pretty.Simple
 import           Eval
 import           Eval.RT
 import           Reduction.Reducer
-import           Syntax
+import           Syntax                  hiding ( bool )
 import           Text.Pretty.Simple             ( pPrint )
 
 rTest :: Rd FuncExp Bool
@@ -83,7 +83,7 @@ rStaticExp = Reducer aux
               False
               s
               (LTuple $ map
-                (\l -> maybe l expOfRt (evalLiteral s $ rdExp $ aux s l))
+                (\l -> maybe l expOfRt (evalLiteral s . rdExp $ aux s l))
                 ls
               )
     | LList ls <- e
@@ -108,10 +108,14 @@ rStaticExp = Reducer aux
     | Cell MNone e' <- e
     = let Rd v s' e'' = aux s e' in Rd v s' (Cell MNone e'')
     | Capture c <- e
+    , RTNil <- stLast s
+    = Rd False s e
+    | Capture c <- e
     = case getCapture c s of
       Right l' -> Rd True (s { stLast = l' }) (expOfRt l')
       Left  _  -> Rd False s e
-    | Func l args fe <- e -- TODO: write rFuncExp
+    | Func l args fe <- e
+    , isNothing l
     = let fns = maybe [] (\k -> [ (k, RTFunc e) | not (funcExists k s) ]) l
           (appliedArgs, leftArgs) = splitAt ((rtLength . stLast) s) args
           vars                    = assignVars (stLast s) appliedArgs
@@ -120,6 +124,9 @@ rStaticExp = Reducer aux
           s'                      = s { stLast = RTNil, stStack = stack' }
           Rd rfe s'' fe'          = runReducer rStaticFuncExp s' fe
       in  Rd rfe s' { stStack = fns : stStack s } (Func l leftArgs fe')
+    | Func l args fe <- e
+    = let Rd rfe s' fe' = runReducer rStaticFuncExp (s { stLast = RTNil }) fe
+      in  Rd rfe s' (Func l args fe')
     | Flow p q <- e
     = let Rd rp s'  p' = aux s p
           Rd rq s'' q' = aux s' q

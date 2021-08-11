@@ -120,6 +120,7 @@ cast t    a = error ("Unmatched type cast: " <> show a <> " -> " <> show t)
 
 rtParse :: Type -> String -> RTVal
 rtParse t s
+  | null s, TList _ <- t = RTList []
   | null s = RTNil
   | Just (e, "") <- parseResult = rtOfExp t e
   | Just (_, rest) <- parseResult = error
@@ -210,6 +211,12 @@ fOfBop OpAdd (RTString a)  (RTString b)  = RTString (a <> b)
 -- String Ops
 fOfBop OpMul (RTString a) (RTInt n) | n > 0 = RTString $ concat $ replicate n a
                                     | otherwise = RTString ""
+
+-- List x List
+fOfBop OpAdd (RTList as) (RTList bs) = RTList (as <> bs)
+fOfBop OpSub (RTList as) (RTList bs) = RTList [ a | a <- as, a `notElem` bs ]
+fOfBop OpMul (RTList as) (RTList bs) =
+  RTList [ RTTuple [a, b] | a <- as, b <- bs ]
 
 -- Truthy
 -- Truthy: Logic
