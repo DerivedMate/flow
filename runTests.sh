@@ -51,8 +51,6 @@ function execTest () {
         fi
 
         result="$(cat <&4)"
-        echo "[$name :: returned]:"
-        echo $result
         
         if [[ "$result" == "$output" ]];
             then 
@@ -60,6 +58,8 @@ function execTest () {
                 ((correct++))
             else 
                 echo -e "[${RED}wrong${NC}]: $name"
+                echo "[$name :: returned]:"
+                echo $result
                 ((wrong++))
         fi
         echo -e $caseSeparator 
