@@ -3,6 +3,7 @@ import           Data.Bifunctor
 import           Data.List
 import           Eval
 import           Eval.RT
+import           Reduction.Nullable             ( rNullableExp )
 import           Reduction.Reducer              ( optimize )
 import           Reduction.Static               ( rStaticExp )
 import           Syntax
@@ -40,8 +41,13 @@ runFile :: Int -> FilePath -> IO ()
 runFile optLvl path = optSrc >>= runFlow
  where
   srcParse = parseFile path
-  optSrc | optLvl == 1 = fmap (first (optimize rStaticExp)) <$> srcParse
-         | otherwise   = srcParse
+  optSrc
+    | optLvl == 1
+    = fmap (first (optimize rStaticExp)) <$> srcParse
+    | optLvl == 2
+    = fmap (first (optimize rNullableExp . optimize rStaticExp)) <$> srcParse
+    | otherwise
+    = srcParse
 
 
 main :: IO ()

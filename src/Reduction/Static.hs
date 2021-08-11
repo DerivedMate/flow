@@ -27,10 +27,6 @@ rRunFile :: FilePath -> IO ()
 rRunFile path = parseFile path >>= runFlow . fmap
   (first (rdExp . runReducer rStaticExp emptyState))
 
-rTestFile :: FilePath -> IO ()
-rTestFile path = parseFile path >>= pPrint . fmap
-  (rdExp . runReducer rStaticExp emptyState . fst)
-
 rIoTestString :: String -> IO ()
 rIoTestString =
   (pPrint . fmap (first (runReducer rStaticExp emptyState))) . parseString

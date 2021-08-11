@@ -38,10 +38,11 @@ function execTest () {
     echo $output
 
     echo -e $caseSeparator
-    for i in 0 1
+    for i in 0 1 2
     do
         local name="${f}/ FOPT=${i}"
         export FOPT=$i
+        local ts=$(date +%s%N)
 
         if [ -f "$input" ]; 
             then 
@@ -50,14 +51,16 @@ function execTest () {
                 stack run -- $src >&3
         fi
 
+        local te=$(date +%s%N)
         result="$(cat <&4)"
+        local duration="$((($te - $ts) / 1000000))ms"
         
         if [[ "$result" == "$output" ]];
             then 
-                echo -e "[${GREEN}correct${NC}]: $name"
+                echo -e "[${GREEN}correct${NC}]: $name ($duration)"
                 ((correct++))
             else 
-                echo -e "[${RED}wrong${NC}]: $name"
+                echo -e "[${RED}wrong${NC}]: $name ($duration)"
                 echo "[$name :: returned]:"
                 echo $result
                 ((wrong++))
