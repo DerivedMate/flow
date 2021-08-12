@@ -14,11 +14,13 @@ syntaxTests
              -}
              ]
 
-prun :: String -> Maybe (Exp, String)
-prun = fst . parseString
+prun :: String -> ParseResult
+prun src =
+  let r = parseString src
+  in r { prSrc = "" }
   
-properTree :: Exp -> Maybe (Exp, String) 
-properTree t = fixRootProgram $ Just ( t, "" ) 
+properTree :: Exp -> ParseResult  
+properTree t = parseResultOfRoot "" $ fixRootProgram (Just (t, ""))
 
 testBinOp 
   = TestList [ TestCase (
@@ -239,7 +241,7 @@ testPrimitives
                ),
                TestCase (
                 assertEqual "Int only digits"
-                  Nothing
+                  (ParseResult Nothing Nothing "")
                   (prun " { 012aa1 } ")
                ),
 
@@ -261,7 +263,7 @@ testPrimitives
                ),
                TestCase (
                  assertEqual "Float no middle signs"
-                 Nothing
+                 (ParseResult Nothing Nothing "")
                  (prun " { 12+.+12 } ")
                ),
 
@@ -592,9 +594,9 @@ testFunc
 testEaxmples 
   = TestList [ TestCase (
                 do 
-                let exp = Just (Program (Flow (Cell MNone (LTuple [Io (IoStdIn TInt),LInt 1])) (Flow (Cell MNone (Func (Just "fact") [Arg "a" TInt,Arg "b" TInt] (Cond (BinOp OpGt (Var "a") (LInt 1)) (Flow (Cell MNone (LTuple [BinOp OpSub (Var "a") (LInt 1),BinOp OpMul (Var "a") (Var "b")])) (Flow (FRef "fact") Nil)) (Single (Flow (Cell MNone (Var "b")) Nil))))) (Flow (Cell MNone (Io (IoStdOut TInt))) Nil))) Nil,"")
+                let exp = Just (Program (Flow (Cell MNone (LTuple [Io (IoStdIn TInt),LInt 1])) (Flow (Cell MNone (Func (Just "fact") [Arg "a" TInt,Arg "b" TInt] (Cond (BinOp OpGt (Var "a") (LInt 1)) (Flow (Cell MNone (LTuple [BinOp OpSub (Var "a") (LInt 1),BinOp OpMul (Var "a") (Var "b")])) (Flow (FRef "fact") Nil)) (Single (Flow (Cell MNone (Var "b")) Nil))))) (Flow (Cell MNone (Io (IoStdOut TInt))) Nil))) Nil)
                 
-                parseFile "./test/example/fact.hf" >>= assertEqual "Factorial" exp . fst
+                parseFile "./test/example/fact.hf" >>= assertEqual "Factorial" exp . prExp
                ) 
 
              ]

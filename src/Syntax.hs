@@ -14,7 +14,7 @@ data ParseResult = ParseResult
   { prExp  :: Maybe Exp
   , prLeft :: Maybe String
   , prSrc  :: String
-  }
+  } deriving ( Show, Eq )
 
 data CType
   = CSingle Int
@@ -365,9 +365,7 @@ printAST (ParseResult (Just a) _ _) = pPrint a
 
 parseString :: String -> ParseResult
 parseString input =
-  case fixRootProgram $ runParser program (removeComments input) of
-    Just (ast, r) -> ParseResult (Just ast) (Just r) input
-    _             -> ParseResult Nothing Nothing input
+  parseResultOfRoot input (fixRootProgram $ runParser program (removeComments input))
 
 parseFile :: String -> IO ParseResult
 parseFile src = do
@@ -379,3 +377,8 @@ fixRootProgram :: Maybe (Exp, String) -> Maybe (Exp, String)
 fixRootProgram p@(Just (Program _ _, _)) = p
 fixRootProgram (  Just (p          , r)) = Just (Program p Nil, r)
 fixRootProgram a                         = a
+
+parseResultOfRoot :: String -> Maybe (Exp, String) -> ParseResult
+parseResultOfRoot src root 
+  | Just (ast, r) <- root = ParseResult (Just ast) (Just r) src
+  | otherwise  = ParseResult Nothing Nothing src
