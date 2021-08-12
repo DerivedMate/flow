@@ -57,10 +57,10 @@ import           Text.Pretty.Simple
 -}
 
 rTestFile :: [Reducer Exp Bool] -> FilePath -> IO ()
-rTestFile reds path = parseFile path >>= pPrint . fmap aux
+rTestFile reds path = parseFile path >>= pPrint . fmap aux . prExp
  where
-  aux :: (Exp, String) -> Exp
-  aux x = foldl (\e r -> rdExp $ runReducer r emptyState e) (fst x) reds
+  aux :: Exp -> Exp
+  aux x = foldl (\e r -> rdExp $ runReducer r emptyState e) x reds
 
 
 rNullableFuncExp :: Reducer FuncExp Bool
@@ -129,8 +129,4 @@ rNullableExp = Reducer aux
                  | Flow ee _ <- e      = ignoresInput ee
                  | Func _ args _ <- e  = null args
                  | otherwise           = False
-
-rTestNullableString :: String -> Rd Exp Bool
-rTestNullableString src =
-  let Just (ast, _) = parseString src in runReducer rNullableExp emptyState ast
 

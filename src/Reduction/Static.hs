@@ -23,13 +23,9 @@ rTest = runReducer rStaticFuncExp
   -- [3; a=5]{ + &0 a } ~ { 8 }
   e    = Single (LTuple [BinOp OpAdd (LInt 3) (Var "a")])
 
-rRunFile :: FilePath -> IO ()
-rRunFile path = parseFile path >>= runFlow . fmap
-  (first (rdExp . runReducer rStaticExp emptyState))
-
 rIoTestString :: String -> IO ()
 rIoTestString =
-  (pPrint . fmap (first (runReducer rStaticExp emptyState))) . parseString
+  (pPrint . fmap (runReducer rStaticExp emptyState)) . prExp . parseString
 
 rStaticFuncExp :: Reducer FuncExp Bool
 rStaticFuncExp = Reducer aux

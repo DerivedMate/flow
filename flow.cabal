@@ -35,6 +35,7 @@ library
       Eval.Step.IO
       Eval.Step.Literal
       Helper.AssocMap
+      Helper.Error
       Lexer
       PreProcessor
       Reduction.Nullable

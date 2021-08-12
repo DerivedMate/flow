@@ -15,9 +15,9 @@ syntaxTests
              ]
 
 prun :: String -> Maybe (Exp, String)
-prun = parseString
+prun = fst . parseString
   
-properTree :: Exp -> Maybe (Exp, String)
+properTree :: Exp -> Maybe (Exp, String) 
 properTree t = fixRootProgram $ Just ( t, "" ) 
 
 testBinOp 
@@ -594,7 +594,7 @@ testEaxmples
                 do 
                 let exp = Just (Program (Flow (Cell MNone (LTuple [Io (IoStdIn TInt),LInt 1])) (Flow (Cell MNone (Func (Just "fact") [Arg "a" TInt,Arg "b" TInt] (Cond (BinOp OpGt (Var "a") (LInt 1)) (Flow (Cell MNone (LTuple [BinOp OpSub (Var "a") (LInt 1),BinOp OpMul (Var "a") (Var "b")])) (Flow (FRef "fact") Nil)) (Single (Flow (Cell MNone (Var "b")) Nil))))) (Flow (Cell MNone (Io (IoStdOut TInt))) Nil))) Nil,"")
                 
-                parseFile "./test/example/fact.hf" >>= assertEqual "Factorial" exp
+                parseFile "./test/example/fact.hf" >>= assertEqual "Factorial" exp . fst
                ) 
 
              ]

@@ -11,6 +11,7 @@ import           System.Directory.Internal.Prelude
                                                 ( fromMaybe )
 import           System.Environment
 import           System.IO
+import           Text.Printf                    ( printf )
 
 interactiveShell :: IO ()
 interactiveShell =
@@ -38,17 +39,23 @@ interactiveShell =
     = runFlow (parseString input) >> loop
 
 runFile :: Int -> FilePath -> IO ()
-runFile optLvl path = optSrc >>= runFlow
+runFile optLvl path = optSrc >>= runFlow >>= handleError
  where
   srcParse = parseFile path
   optSrc
     | optLvl == 1
-    = fmap (first (optimize rStaticExp)) <$> srcParse
+    = (\r -> r { prExp = optimize rStaticExp <$> prExp r }) <$> srcParse
     | optLvl == 2
-    = fmap (first (optimize rNullableExp . optimize rStaticExp)) <$> srcParse
+    = (\r ->
+        r { prExp = optimize rNullableExp . optimize rStaticExp <$> prExp r }
+      )
+      <$> srcParse
     | otherwise
     = srcParse
 
+handleError :: Either String () -> IO ()
+handleError (Left msg) = printf msg
+handleError _          = pure ()
 
 main :: IO ()
 main = do

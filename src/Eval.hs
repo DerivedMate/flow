@@ -10,10 +10,30 @@ import           Eval.Step
 import           Syntax
 
 
-runFlow :: Maybe (Exp, String) -> IO ()
-runFlow Nothing = error "Failed to compile the source"
-runFlow (Just (_, r)) | (not . null) r = runFlow Nothing
-runFlow (Just (ast, _)) = step ast (State RTNil []) >>= aux >> pure ()
+runFlow :: ParseResult -> IO (Either String ())
+runFlow (ParseResult Nothing Nothing src) =
+  pure . Left $ "Compilation error at 1:1 :\n" <> (unlines . take 1 . lines) src
+runFlow (ParseResult _ (Just r) src) | (not . null) r =
+  pure
+    .  Left
+    $  "Compilation error at "
+    <> show column
+    <> ":"
+    <> show line
+    <> " :\n"
+    <> loc
+ where
+  Just preR    = reverse <$> stripPrefix (reverse r) (reverse src)
+  line         = length . lines $ preR
+  lastTwoLines = unlines . reverse . take 2 . reverse . lines $ preR
+  firstLine    = unlines . take 1 . lines $ r
+  loc          = lastTwoLines <> "[!!]" <> firstLine
+  column | (l : _) <- lineLengths = l
+         | otherwise              = 0
+    where lineLengths = length <$> lines preR
+
+runFlow (ParseResult (Just ast) _ src) =
+  step ast (State RTNil []) >>= aux >> pure (Right ())
  where
   aux [] = pure ()
   aux ds = sequence (iter <$> ds) >>= aux . concat
@@ -26,3 +46,5 @@ runFlow (Just (ast, _)) = step ast (State RTNil []) >>= aux >> pure ()
   help ds = trace
     ("\n" <> intercalate " <<<<<<<< END >>>>>>>> \n\n" (fmap show ds) <> "\n\n")
     ds
+
+runFlow _ = undefined
