@@ -1,0 +1,6 @@
+@import(`./maths.hf`)
+
+{ ~toStr: a(Str) = a }
+{ ~iter: n(Int) =
+    > n 0 | (n; - n 1)
+}

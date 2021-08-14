@@ -36,7 +36,10 @@ library
       Eval.Step.Literal
       Helper.AssocMap
       Helper.Error
+      Helper.String
       Lexer
+      Module.Graph
+      Module.Module
       PreProcessor
       Reduction.Nullable
       Reduction.Reducer

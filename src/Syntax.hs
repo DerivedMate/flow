@@ -6,15 +6,18 @@ import           Control.Monad
 import           Data.Char
 import           Data.Functor
 import           Lexer
+import           Module.Module
 import           PreProcessor
 import           System.IO
 import           Text.Pretty.Simple
+import Data.Bifunctor
 
 data ParseResult = ParseResult
   { prExp  :: Maybe Exp
   , prLeft :: Maybe String
   , prSrc  :: String
-  } deriving ( Show, Eq )
+  }
+  deriving (Show, Eq)
 
 data CType
   = CSingle Int
@@ -364,13 +367,12 @@ printAST :: ParseResult -> IO ()
 printAST (ParseResult (Just a) _ _) = pPrint a
 
 parseString :: String -> ParseResult
-parseString input =
-  parseResultOfRoot input (fixRootProgram $ runParser program (removeComments input))
+parseString input = parseResultOfRoot
+  input
+  (fixRootProgram $ runParser program (removeComments input))
 
-parseFile :: String -> IO ParseResult
-parseFile src = do
-  f <- openFile src ReadMode
-  parseString <$> hGetContents f
+parseFile :: String -> IO (Either String ParseResult)
+parseFile path = second parseString <$> gatherFile path
 
 
 fixRootProgram :: Maybe (Exp, String) -> Maybe (Exp, String)
@@ -379,6 +381,6 @@ fixRootProgram (  Just (p          , r)) = Just (Program p Nil, r)
 fixRootProgram a                         = a
 
 parseResultOfRoot :: String -> Maybe (Exp, String) -> ParseResult
-parseResultOfRoot src root 
+parseResultOfRoot src root
   | Just (ast, r) <- root = ParseResult (Just ast) (Just r) src
-  | otherwise  = ParseResult Nothing Nothing src
+  | otherwise             = ParseResult Nothing Nothing src

@@ -1,0 +1,6 @@
+@import(`./io.hf`)
+
+{ ~print: a = 
+    { a } => ~toStr 
+          => { <~ Str } 
+}

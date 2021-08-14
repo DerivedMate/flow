@@ -34,19 +34,23 @@ interactiveShell =
     | Just rest <- stripPrefix ":ast" input
     = printAST (parseString rest) >> loop
     | Just path <- stripPrefix ":file" input
-    = parseFile path >>= runFlow >> loop
+    = runFile 0 path >> loop
     | otherwise
     = runFlow (parseString input) >> loop
 
 runFile :: Int -> FilePath -> IO ()
-runFile optLvl path = optSrc >>= runFlow >>= handleError
+runFile optLvl path = do
+ src' <- optSrc
+ case src' of
+   Left msg -> printf msg
+   Right ast -> runFlow ast >>= handleError
  where
   srcParse = parseFile path
   optSrc
     | optLvl == 1
-    = (\r -> r { prExp = optimize rStaticExp <$> prExp r }) <$> srcParse
+    = second (\r -> r { prExp = optimize rStaticExp <$> prExp r }) <$> srcParse 
     | optLvl == 2
-    = (\r ->
+    = second (\r ->
         r { prExp = optimize rNullableExp . optimize rStaticExp <$> prExp r }
       )
       <$> srcParse
@@ -55,7 +59,7 @@ runFile optLvl path = optSrc >>= runFlow >>= handleError
 
 handleError :: Either String () -> IO ()
 handleError (Left msg) = printf msg
-handleError _          = pure ()
+handleError (Right a)         = pure a
 
 main :: IO ()
 main = do

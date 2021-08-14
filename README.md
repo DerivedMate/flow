@@ -2,6 +2,29 @@
 
 CPS styled, interpreted, dangerously dynamically typed programming language with no compile time checks, and exclusively runtime errors.
 
+## Table of contents
+- [Flow](#flow)
+  - [Table of contents](#table-of-contents)
+  - [History](#history)
+  - [Installation](#installation)
+  - [Syntax highlighting](#syntax-highlighting)
+  - [Basic concepts](#basic-concepts)
+  - [Data types](#data-types)
+  - [Casting](#casting)
+  - [Binary operations](#binary-operations)
+  - [Functions](#functions)
+    - [Currying](#currying)
+    - [Conditionals](#conditionals)
+    - [Modifiers](#modifiers)
+      - [map](#map)
+      - [keep](#keep)
+      - [gen](#gen)
+      - [fold](#fold)
+      - [unfold](#unfold)
+  - [IO](#io)
+  - [Capturing](#capturing)
+  - [Modules](#modules)
+
 ## History
 
 The initial idea was born on the [Cave of Linguists](https://discord.me/cave-of-linguists) discord server. Pioneering work was done by the user of name waterboi who introduced the original syntax. His implementation can be found under [thomaskoppelaar/flow](https://github.com/thomaskoppelaar/flow).
@@ -115,6 +138,7 @@ Flow uses prefix notation for binary operations. If an operation is not defined 
 | division              | `/`    |
 | exponentiation        | `^`    |
 | concatenation         | `+`    |
+| set difference        | `-`    |
 | greater than or equal | `>=`   |
 | greater than          | `>`    |
 | less than or equal    | `<=`   |
@@ -345,3 +369,19 @@ However, where this feature truly comes in handy is in nested generators. Consid
 ```
 
 The latter gets rid of dummy variable declarations.
+
+## Modules
+
+Separate files can be imported using `@import` statement with a **relative** module path:
+
+```
+@import(`./path/to/module.hf`)
+
+%% ... %%
+```
+
+Modules are simply inlined, following the order of dependency. Cyclic dependencies are not supported, and will result in a compile time error:
+
+```
+$> Error: cyclic dependency tree. Root path: /absolute/root/module/path.hf
+```

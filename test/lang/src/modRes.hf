@@ -1,0 +1,9 @@
+@import(`../modules/maths.hf`)
+@import(`../modules/io.hf`)
+@import(`../modules/std.hf`)
+
+   { ~> List<Int> } 
+=> map ~dec
+=> map { { &0 } => gen ~iter }
+=> map ~toStr
+=> ~print

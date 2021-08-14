@@ -56,12 +56,6 @@ import           Text.Pretty.Simple
       2b. Otherwise, return `Cond c' ( nullable e ) ( reduce next_fe )`  
 -}
 
-rTestFile :: [Reducer Exp Bool] -> FilePath -> IO ()
-rTestFile reds path = parseFile path >>= pPrint . fmap aux . prExp
- where
-  aux :: Exp -> Exp
-  aux x = foldl (\e r -> rdExp $ runReducer r emptyState e) x reds
-
 
 rNullableFuncExp :: Reducer FuncExp Bool
 rNullableFuncExp = Reducer aux

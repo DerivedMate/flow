@@ -1,10 +1,11 @@
 #!/usr/bin/bash
+cd ./test
 
 GREEN='\033[1;32m'
 RED='\033[1;31m'
 NC='\033[0m' # No Color
 
-testBase="$(realpath ./test/lang)"
+testBase="$(realpath ./lang)"
 tmpRunResult="$(mktemp /tmp/flow_test_lang_run.XXXXXX)"
 caseSeparator="----------<>----------"
 
@@ -16,13 +17,16 @@ exec 4<$tmpRunResult
 correct=0
 wrong=0
 
+
 printf "[pre :: build]: start\n"
 
 stack build 
 sleep "0.4s"
 
 printf "[pre :: build]: done\n"
+printf "[pre :: generating files]\n"
 
+bash ./prerun.sh
 
 function execTest () {
     local f=$1
@@ -40,7 +44,7 @@ function execTest () {
     echo -e $caseSeparator
     for i in 0 1 2
     do
-        local name="${f}/ FOPT=${i}"
+        local name="${f} | FOPT=${i}"
         export FOPT=$i
         local ts=$(date +%s%N)
 
