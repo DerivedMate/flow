@@ -26,6 +26,7 @@ CPS styled, interpreted, dangerously dynamically typed programming language with
       - [fold](#fold)
       - [unfold](#unfold)
     - [let](#let)
+    - [lazy](#lazy)
   - [IO](#io)
   - [Capturing](#capturing)
   - [Modules](#modules)
@@ -72,13 +73,13 @@ A vscode extension for syntax highlighting can be found under [flow-highlight](h
 The main idea behind flow is the flow of data between _"cells"_. Each cell is either:
 
 1. an expression: `{ 2 }`, `{ + 2 1 }`, `{(1; 3)}`;
-1. a function: `{ ~add: a(Int), b(Int) = + a b }`;
+1. a function: `{ ~add: a Int, b Int. + a b }`;
 1. or an IO operation: `{ <~ List<Int> }`.
 
 Flow from one cell to another is denoted by `=>`:
 
 ```
-{(1; 3)} => { ~add: a(Int), b(Int) = + a b }
+{(1; 3)} => { ~add: a Int, b Int. + a b }
          => { <~ Int }
 ```
 
@@ -103,8 +104,8 @@ Current data types include:
 In general, data is weakly typed, unless the type is explicitly stated:
 
 ```
-{ ~combine: a,      b           = + a b }
-{ ~add:     a(Int), b(Int). Int = + a b } %% first casts a, b into ints %%
+{ a,     b.         + a b } => let ~combine
+{ a Int, b Int. Int + a b } => let ~add %% first casts a, b into ints, and + a b - to int %%
 
 {(1; 3)}              => ~combine => { <~ Int } %% => 4             %%
 {(`Hello`; ` World`)} => ~combine => { <~ Str } %% => `Hello World` %%
@@ -117,16 +118,16 @@ In general, data is weakly typed, unless the type is explicitly stated:
 Flow allows for two kinds of casting: of arguments, and of variables. The former take form of specifying the arguments' types:
 
 ```
-{ ~add: a(Int), b(Int) = %% ... %% }
+{ ~add: a Int, b Int. %% ... %% }
 ```
 
 The latter regard variables, and can be used like normal expressions:
 
 ```
 { + 2 5 :: Float } %% == { + 2 (5 :: Float) } %%
-{ ~add: a, b = + a b }
+{ ~add: a, b. + a b }
    => { &0 :: (Any -> Any -> Int) }
-   => { f = {( [1, 2, 3]; [4, 5] )} => ~f  }
+   => { f. {( [1, 2, 3]; [4, 5] )} => ~f  }
    => { <~ Str } %% => 5 %%
 ```
 
@@ -295,14 +296,14 @@ Current modifiers include:
 #### map
 
 ```
-{ ~inc: a(Int) = + 1 a }
+{ a Int. + 1 a } => let ~inc
 {[1, 2, 3]} => map ~inc => { <~ List<Int> } %% => [2, 3, 4] %%
 ```
 
 #### keep
 
 ```
-{ ~isEven: a(Int) = == 0 ( % a 2 ) }
+{ a Int. == 0 ( % a 2 ) } => let ~isEven
 { 3 } => keep ~isEven => { `I'm never printed!` } => { <~ Str }
 { 2 } => keep ~isEven => { <~ Int } %% => 2 %%
 
@@ -312,10 +313,10 @@ Current modifiers include:
 #### gen
 
 ```
-{ ~iter: n(Int) =
+{ n Int.
     > n 0 | (n; - n 1)
-}
-{ 3 } => map { n = {n} => gen ~iter }
+} => let ~iter
+{ 3 } => map { n. {n} => gen ~iter }
       => { <~ List<Int> }        %% => [3, 2, 1] %%
 { 3 } => gen ~iter => { <~ Int } %% => 3 2 1     %%
 ```
@@ -325,7 +326,7 @@ Current modifiers include:
 ```
    {( 1; [1, 2, 3, 4] )} %% (initial; elements) %%
 => fold
-   { ~prod: a(Int), n(Int) = * a n }
+   { ~prod: a Int, n Int. * a n }
    %%
      | a | n | return   |
      | 1 | 1 | 1*1 = 1  |
@@ -343,7 +344,7 @@ Fold can also accept multiple arguments:
 ```
    {( ``; [(`Hi`; `Alice`), (`Hello`; `Bob`)] )}
 => fold
-   { acc, greeting, name =
+   { acc, greeting, name.
         + acc ( + (+ (+ greeting `, `) name) `! ` )
    }
 => { <~ Str }
@@ -363,7 +364,7 @@ Fold can also accept multiple arguments:
 
    {(1; ~> Int; 1)}
 => unfold
-   { ~fact: n, m, acc =
+   { ~fact: n, m, acc.
         <= n m | ( * n acc
                  ; ( + n 1
                    ; m
@@ -397,6 +398,15 @@ Fold can also accept multiple arguments:
 { ~> Int } => gen ~foobar => { <~ Str }
 ```
 
+### lazy
+
+Lazy is primarily intended for deferring argumentless functions/cells or functions with all arguments bound. 
+
+```
+lazy { ~> Int } => let { getInt }
+~getInt => let { age }
+```
+
 ## IO
 
 At the moment, IO operations only support stdio, yet further extensions are planned. IO is clearly divided into:
@@ -408,7 +418,7 @@ All IO operations require explicit casting.
 Currently IO operations are executed sequentially, in the order of occurrence:
 
 ```
-{(~> Int; ~> Int)} => { a, b = - a b } => { <~ Int }
+{(~> Int; ~> Int)} => { a, b. - a b } => { <~ Int }
 %%
 input:
 3
@@ -438,14 +448,14 @@ Slicing is also available through `&i:j`. Zero indexed, both inclusive. `j` can 
 However, where this feature truly comes in handy is in nested generators. Consider:
 
 ```
-{ ~iter: n(Int) =
+{ n Int.
     > n 0 | (n; - n 1)
-}
+} => let ~iter
 
 {[3, 2, 1]}
-    => map { n = {n} => gen {
-             m = {m} => gen ~iter
-                     => { r = (r; - r 1) }
+    => map { n. {n} => gen {
+             m. {m} => gen ~iter
+                    => { r. (r; - r 1) }
             }}
     => { <~ List<Int> }
 

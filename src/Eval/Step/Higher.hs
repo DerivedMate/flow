@@ -215,6 +215,17 @@ stepHigher step (Cell MLazy e) s
         (applied, left) = splitAt (length params) args
         args'           = bindArgs (stLast s) applied <> (rtArgOfArg <$> left)
     in  pure [Datum Nil (s { stLast = RTFunc l args' rt fe })]
+  | FRef k <- e
+  , Just (RTFunc l args rt fe) <- getVar k s
+  = stepHigher
+    step
+    (Cell MLazy (Func l (argOfRtArg <$> args) rt fe))
+    (s
+      { stLast = RTTuple
+                 $  [ v | RTArg _ _ v <- args, RTNil /= v ]
+                 <> (splatLast . stLast) s
+      }
+    )
   | otherwise
   = stepHigher step (Cell MLazy (Func Nothing [] TAny (Single e))) s
 
