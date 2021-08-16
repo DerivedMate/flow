@@ -19,7 +19,7 @@ data RTArg = RTArg
 
 instance Show RTArg where
   show a
-    | RTNil == rtArgValue a = rtArgLabel a <> "(" <> show (rtArgType a) <> ")"
+    | RTNil <- rtArgValue a = rtArgLabel a <> "(" <> show (rtArgType a) <> ")"
     | otherwise = rtArgLabel a <> "(" <> show (rtArgType a) <> ") = " <> show
       (rtArgValue a)
 
@@ -294,6 +294,11 @@ assignVars _            []      = []
 bindVar :: RTVal -> Arg -> (String, RTVal)
 bindVar v (Arg k t) = (k, cast t v)
 
+bindArgs :: RTVal -> [Arg] -> [RTArg]
+bindArgs l args =
+  let tArgs = map (\(Arg n t) -> (n, t)) args
+  in  [ RTArg n t v | ((n, t), v) <- tArgs `zip` splatLast l ]
+
 deleteVars :: [String] -> [Frame] -> [Frame]
 deleteVars [] frames = frames
 deleteVars _  []     = []
@@ -349,6 +354,10 @@ deTuple RTNil        = []
 deTuple (RTList   a) = a
 deTuple (RTString s) = map (RTString . (: [])) s
 deTuple a            = [a]
+
+splatLast :: RTVal -> [RTVal]
+splatLast (RTTuple ls) = ls
+splatLast r            = [r]
 
 wrapperOfState :: RTVal -> ([RTVal] -> RTVal)
 wrapperOfState (RTTuple  _) = RTTuple

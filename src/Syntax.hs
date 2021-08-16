@@ -42,6 +42,7 @@ data FMod
   | MUnfold
   | MLet
   | MExport
+  | MLazy
   deriving ( Show, Eq )
 
 data Type
@@ -260,6 +261,7 @@ fMod =
     <|> (MUnfold   <$ tString "unfold")
     <|> (MLet      <$ tString "let"   )
     <|> (MExport   <$ tString "export")
+    <|> (MLazy     <$ tString "lazy")
     where tString = token . string
 
 func :: Parser Exp
@@ -267,8 +269,8 @@ func =
   Func
     <$> optional (token label)
     <*> (token args <|> pure [])
+    <*  token (char '.')
     <*> (token returnType <|> pure TAny)
-    <*  token (string "=")
     <*> token fBody
 
 fRef :: Parser Exp
@@ -279,14 +281,14 @@ label = char '~' *> identifier <* token (char ':')
 
 arg :: Parser Arg
 arg =
-  (Arg <$> token identifier <*> enclosed (char '(') (char ')') (token pType))
+  (Arg <$> token identifier <*> maybeEnclosed (char '(') (char ')') (token pType))
     <|> (Arg <$> token identifier <*> pure TAny)
 
 args :: Parser [Arg]
 args = sepBy (token (char ',')) arg
 
 returnType :: Parser Type
-returnType = token (char '.') *> (maybeEnclosed (char '(') (char ')') pType)
+returnType = maybeEnclosed (char '(') (char ')') pType
 
 fBody :: Parser FuncExp
 fBody =

@@ -10,13 +10,13 @@
 
 %% Multiple Lines %%
 { 5 } => unfold 
-         { left = 
+         { left. 
             > left 0 | (~> Int; - left 1) 
          } 
       => { <~ List<Int> }
 
 %% All the lines %%
    { ~> Any } 
-=> unfold { a = a | (a; ~> Any) }
+=> unfold { a. a | (a; ~> Any) }
 => { <~ List<Any> }
 

@@ -41,10 +41,6 @@ stepFunc step node@(Func l args rt f_body) s =
   in
     if doRun then stepFExp f_body s' else pure [Datum Nil s']
  where
-  bindArgs :: RTVal -> [Arg] -> [RTArg]
-  bindArgs l args =
-    let tArgs = map (\(Arg n t) -> (n, t)) args
-    in  [ RTArg n t v | ((n, t), v) <- tArgs `zip` deTuple l ]
   stepFExp :: FuncExp -> State -> IO [Datum]
   stepFExp FNil s = pure [Datum Nil (s { stStack = tail . stStack $ s })]
   stepFExp (Single a) s = step (Anchor AClosure node a) s
@@ -66,9 +62,6 @@ stepFunc step (FRef k) s = if funcExists k s
   then step f s'
   else error ("Undefined function '" <> k <> "'. State:\n" <> show s)
  where
-  splatLast :: RTVal -> [RTVal]
-  splatLast (RTTuple ls) = ls
-  splatLast r            = [r]
   Just (RTFunc l args rt fe) = getVar k s
   s'                         = s
     { stLast = RTTuple

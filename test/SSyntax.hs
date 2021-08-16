@@ -353,12 +353,12 @@ testPrimitives
                  :----}
                  assertEqual "Tuple Singleton id"
                  (properTree ( Flow (Cell MNone ( LInt 1 ) ) Nil))
-                 (prun "{ (1) }")
+                 (prun "{( 1 )}")
                ),
                TestCase (
                  assertEqual "Tuple Regular"
                  (properTree ( Flow (Cell MNone ( LTuple [LInt 1, LInt 2, LInt 3] )) Nil ))
-                 (prun "{ (1; 2; 3 ) }")
+                 (prun "{( 1; 2; 3 )}")
                )
              ]
 
@@ -424,7 +424,7 @@ testFunc
             )
           ) Nil
         ))
-        (prun "{ = 1 }")
+        (prun "{. 1 }")
       ),
       TestCase (
         assertEqual "No args, labeled"
@@ -439,7 +439,7 @@ testFunc
             )
           ) Nil
         ))
-        (prun "{ ~const_1: = 1 }")
+        (prun "{ ~const_1:. 1 }")
       ),
       TestCase (
         assertEqual "No args, with bare return"
@@ -454,7 +454,7 @@ testFunc
             )
           ) Nil
         ))
-        (prun "{ ~const_1:.Int = 1 }")
+        (prun "{ ~const_1:.Int 1 }")
       ),
       TestCase (
         assertEqual "No args, with enclosed return"
@@ -469,7 +469,7 @@ testFunc
             )
           ) Nil
         ))
-        (prun "{ ~const_1:.(Int) = 1 }")
+        (prun "{ ~const_1:.(Int) 1 }")
       ),
 
 
@@ -495,7 +495,7 @@ testFunc
             )
           ) Nil
          ))
-         (prun "{a (Int) = + a 1}")
+         (prun "{a (Int). + a 1}")
       ),
       TestCase (
         assertEqual "Increment, labeled"  
@@ -514,7 +514,7 @@ testFunc
             )
           ) Nil
          ))
-         (prun "{~inc: a (Int) = + a 1}")
+         (prun "{~inc: a (Int). + a 1}")
       ),
 
 
@@ -542,7 +542,7 @@ testFunc
             )
           ) Nil
         ))
-        (prun "{ ~sum_int: a (Int), b(Int) = + a b }")
+        (prun "{ ~sum_int: a (Int), b(Int). + a b }")
       ),
       TestCase (
         assertEqual "Sum with return"
@@ -563,7 +563,7 @@ testFunc
             )
           ) Nil
         ))
-        (prun "{ ~sum_int: a (Int), b (Int) . Float = + a b }")
+        (prun "{ ~sum_int: a (Int), b (Int). Float + a b }")
       ),
 
       
@@ -605,7 +605,7 @@ testFunc
             )
           ) Nil
         ))
-        (prun "{ ~sum_int: a (Int), b (Int) . Int -> Int = { c(Int) . Int = (+ (+ a b) c) } }")
+        (prun "{ ~sum_int: a (Int), b (Int). Int -> Int { c(Int). Int (+ (+ a b) c) } }")
       ),
 
 
@@ -637,7 +637,7 @@ testFunc
             )
           ) Nil
         ))
-        (prun "{~max2: a(Int), b(Int) = \
+        (prun "{~max2: a(Int), b(Int). \
                \  > a b | a            \
                \        | b            \
                \}")
@@ -682,7 +682,7 @@ testFunc
             ) 
           ) Nil
         ))
-        (prun "{~max3: a(Int), b(Int), c(Int) = \
+        (prun "{~max3: a(Int), b(Int), c(Int). \
                \  && > a b > b c | a \
                \  && > b a > a c | b \
                \                 | c \

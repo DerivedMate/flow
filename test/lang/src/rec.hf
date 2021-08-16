@@ -1,4 +1,4 @@
-{ ~fact: a(Int), b(Int) =
+{ ~fact: a Int, b Int.
     > a 0 | {( - a 1; * a b )} => ~fact
           | b
 } => let ~fact

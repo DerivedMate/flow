@@ -1,8 +1,8 @@
-{ n(Int) = 
+{ n(Int). 
     == 0 (% n 2) | True
                  | False
 } => let ~isEven
-{ n(Int) = 
+{ n(Int). 
     {n} => ~isEven | `It's Even`
                    | `It's Odd`
 } => let ~f

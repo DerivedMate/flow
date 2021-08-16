@@ -194,7 +194,6 @@ stepHigher step (Cell MLet e) s
   | null (stStack s) = pure [Datum Nil s { stLast = l', stStack = [bindings] }]
   | f : fs <- stStack s = pure
     [Datum Nil s { stLast = l', stStack = (bindings <> f) : fs }]
-
  where
   bindings = subBind (stLast s) e
   l'       = RTTuple (snd <$> bindings)
@@ -208,5 +207,15 @@ stepHigher step (Cell MLet e) s
     = concat $ zipWith subBind (deTuple l) ks
     | otherwise
     = error $ "[runtime error]: cannot bind " <> show l <> " to " <> show e
+
+
+stepHigher step (Cell MLazy e) s
+  | Func l args rt fe <- e
+  = let params          = splatLast (stLast s)
+        (applied, left) = splitAt (length params) args
+        args'           = bindArgs (stLast s) applied <> (rtArgOfArg <$> left)
+    in  pure [Datum Nil (s { stLast = RTFunc l args' rt fe })]
+  | otherwise
+  = stepHigher step (Cell MLazy (Func Nothing [] TAny (Single e))) s
 
 stepHigher _ d _ = error $ "Unmatched expression in `stepHigher`: \n" <> show d

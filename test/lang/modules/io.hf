@@ -1,6 +1,6 @@
 @import(`./io.hf`)
 
-{ ~print: a = 
+{ ~print: a. 
     { a } => ~toStr 
           => { <~ Str } 
 } => let ~print

@@ -12,6 +12,10 @@ CPS styled, interpreted, dangerously dynamically typed programming language with
   - [Data types](#data-types)
   - [Casting](#casting)
   - [Binary operations](#binary-operations)
+  - [Variables](#variables)
+    - [Via arguments](#via-arguments)
+    - [Via let bindings](#via-let-bindings)
+    - [Via labels](#via-labels)
   - [Functions](#functions)
     - [Currying](#currying)
     - [Conditionals](#conditionals)
@@ -21,6 +25,7 @@ CPS styled, interpreted, dangerously dynamically typed programming language with
       - [gen](#gen)
       - [fold](#fold)
       - [unfold](#unfold)
+    - [let](#let)
   - [IO](#io)
   - [Capturing](#capturing)
   - [Modules](#modules)
@@ -98,8 +103,8 @@ Current data types include:
 In general, data is weakly typed, unless the type is explicitly stated:
 
 ```
-{ ~combine: a,      b      = + a b }
-{ ~add:     a(Int), b(Int) = + a b } %% first casts a, b into ints %%
+{ ~combine: a,      b           = + a b }
+{ ~add:     a(Int), b(Int). Int = + a b } %% first casts a, b into ints %%
 
 {(1; 3)}              => ~combine => { <~ Int } %% => 4             %%
 {(`Hello`; ` World`)} => ~combine => { <~ Str } %% => `Hello World` %%
@@ -148,16 +153,67 @@ Flow uses prefix notation for binary operations. If an operation is not defined 
 | and                   | `&&`   |
 | or                    | `\|\|` |
 
-## Functions
+## Variables
 
-Functions are essentially cells that can be labeled, and take arguments:
+There are three ways of bindings values:
+
+### Via arguments
+
+Bindings created this way exist only in the function's scope:
 
 ```
-{ ~add: a, b = + a b }
-{       a, b = + a b } %% Does the same thing as the above
-                          but cannot be referenced like:
-                          ~add
-                       %%
+{ `Ann` } => { name Str. %% name is visible only here %% }
+```
+
+### Via let bindings
+
+Let bindings always bind to the nearest scope. All previous bindings of the same name are affectively shadowed:
+
+```
+{ 5 } => let { a } %% a = 5                     %%
+{ 6 } => let { a } %% a = 6, but is not mutated %%
+```
+
+It is highly encouraged to use `let ~name` for functions, and `let { name }` for values; nonetheless, the two are exactly equivalent.
+
+### Via labels
+
+Labels are used for self-referencing a function in its scope. Binding is created iff the function has not been defined in the current scope.
+
+```
+{ a, b. + a b } => let ~f
+{ ~f:. %% ~f refers to the above %% }
+```
+
+## Functions
+
+Functions are cells that take arguments, and can be **locally** aliased with labels:
+
+```
+{ ~fact: n, m.
+   > n 0 | {( - n 1; * n m )} => ~fact
+}
+```
+
+Type annotations for arguments, and return values are also optional:
+
+```
+{ ~add: a Int, b Int. Int 
+   + a b 
+}
+```
+
+the above denotes a function of two integers that returns an integer. Optional parenthesis can be used around types for clarity:
+
+```
+{ greeting Str. (Str -> Str)
+   { name Str. Str 
+      + greeting name
+   }
+} => let ~makeGreeting
+{ `Hello, ` } => ~makeGreeting => let ~welcome
+{ `Bob`     } => ~welcome      => { <~ Str }
+%% => Hello, Bob %%
 ```
 
 ### Currying
@@ -165,16 +221,24 @@ Functions are essentially cells that can be labeled, and take arguments:
 Functions are by design curried:
 
 ```
-{ ~add: a, b = + a b }
-{ 2 } => ~add => { f = { 3 } => ~f }
-              => { <~ Int } %% => 5 %%
+{ a, b. + a b }   => let ~add
+{ 5 } => ~add     => let ~addFive
+{ 6 } => ~addFive => let { eleven }
+
+{ eleven } => { <~ Int }
 ```
 
 Which also means that argumentless functions are immediately called:
 
 ```
-{ ~y: = 5 } => { <~ Int } %% => 5 %%
-         ~y => { <~ Int } %% => 5 %%
+{. { `secrets` } => { <~ Str } => { `ooops` } } => let { badNews }
+```
+
+This can be avoided by using the [lazy](#modifiers) modifier, which get executed only when referenced:
+
+```
+lazy {. { `secrets` } => { <~ Str } } => let ~PublishReynoldsPamphlet
+~PublishReynoldsPamphlet 
 ```
 
 ### Conditionals
@@ -182,32 +246,32 @@ Which also means that argumentless functions are immediately called:
 Flow uses guard-style conditionals, which can be expressions or even proper flows:
 
 ```
-{ ~isEven: n(Int) =
+{ n Int.
     == 0 (% n 2) | True
                  | False
-}
-{ ~f: n(Int) =
-    {n} => ~isEven | `It's Even`
-                   | `It's Odd`
-}
+} => let ~isEven
+{ n Int.
+    { n } => ~isEven | `It's Even`
+                     | `It's Odd`
+} => let ~f
 
-{ 4 } => ~f => { <~ Str } %% => `It's Even` %%
-{ 1 } => ~f => { <~ Str } %% => `It's Odd`  %%
+{ 4 } => ~f => { <~ Str } %% => It's Even %%
+{ 1 } => ~f => { <~ Str } %% => It's Odd  %%
 ```
 
 Needless to say, multiple guards can be used; only the first truthy one is executed:
 
 ```
-{ ~sgn: n =
+{ n =
     > n 0 | 1
     < n 0 | -1
           | 0
-}
+} => let ~sgn
 ```
 
 ### Modifiers
 
-The behavior of a function can be changed with modifier:
+The behavior of a cell can be changed with modifiers:
 
 ```
 mod ~f
@@ -225,6 +289,8 @@ Current modifiers include:
 | gen       | yields a value, and calls itself. Creates new flows from a single element                                                 |
 | fold      | folds (left to right) a list of elements together with an accumulator. Returns the accumulator                            |
 | unfold    | collects yields of the inner generator                                                                                    |
+| let       | binds the incoming value to the specified name(s) in the current scope                                                    |
+| lazy      | defers cell's execution until it's explicitly referenced                                                                  |
 
 #### map
 
@@ -306,6 +372,29 @@ Fold can also accept multiple arguments:
                  )
    }
 => { <~ List<Int> }
+```
+
+### let
+
+```
+{ m Int, w Str, n Int. Str
+   == 0 % n m | w
+              | ``
+} => let ~mkFB
+{[ (3; `foo`)
+ , (5; `bar`)
+ , (7; `yo`) 
+ ]} => map ~mkFB 
+    => let ~fs
+{ n Int. 
+   > n 0 
+   | {( ``; fs )} => fold { a, f. { n } => { + a f } } 
+                  => let { r }
+     {. r | (r; - n 1) 
+          | (n; - n 1) 
+     }
+} => let ~foobar
+{ ~> Int } => gen ~foobar => { <~ Str }
 ```
 
 ## IO

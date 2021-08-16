@@ -7,13 +7,13 @@
 { 3.1415 } 
   => { &0 :: Int }     
   => { <~ Str }
-{ a(Int), b(Int) = + a b }
+{ a(Int), b(Int). + a b }
   => let ~add
   => { &0 :: (Float -> Int -> Int) }
-  => { f = {( 3.9; 2.5 )} => ~f }
+  => { f. {( 3.9; 2.5 )} => ~f }
   => { <~ Str }
 { ~add } 
-  => { f (Any -> Any -> Int) =
+  => { f (Any -> Any -> Int).
          {([1, 2]; [4, 5])} => ~f
      }
   => { <~ Str }

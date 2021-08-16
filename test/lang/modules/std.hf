@@ -1,7 +1,7 @@
 @import(`./maths.hf`)
 
-{ a(Str) = a }
+{ a Str. a }
   => let ~toStr
-{ n(Int) =
+{ n Int.
     > n 0 | (n; - n 1)
 } => let ~iter

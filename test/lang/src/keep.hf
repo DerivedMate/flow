@@ -2,10 +2,10 @@
     Ensure that `keep` stops the flow
 %%
 
-{ n(Int) =
+{ n(Int).
     > n 0 | (n; - n 1)
 } => let ~iter
-{ n(Int) = == 0 ( % n 2 ) }
+{ n(Int). == 0 ( % n 2 ) }
   => let ~isEven
 { 5 } => gen { ~iter } 
       => keep { ~isEven }
