@@ -36,7 +36,7 @@ runFlow (ParseResult (Just ast) _ src) =
   step ast (State RTNil []) >>= aux >> pure (Right ())
  where
   aux [] = pure ()
-  aux ds = sequence (iter <$> ds) >>= aux . concat
+  aux ds = sequence (iter <$> ds) >>= aux .concat
   iter (Datum e s) = step e s
   traceVars :: [String] -> Datum -> Datum
   traceVars ns d@(Datum e s) = traceShow vs d

@@ -15,7 +15,7 @@ stepFunc step node@(Func l args rt f_body) s =
     fns = maybe
       []
       (\k ->
-        [ (k, RTFunc l (rtArgOfArg <$> args) TAny f_body)
+        [ (k, RTFunc l (rtArgOfArg <$> args) rt f_body)
         | not (funcExists k s)
         ]
       )
@@ -30,7 +30,7 @@ stepFunc step node@(Func l args rt f_body) s =
               (  bindArgs (stLast s) appliedArgs
               <> [ RTArg n t RTNil | Arg n t <- leftArgs ]
               )
-              TAny
+              rt
               f_body
             , []
             , False

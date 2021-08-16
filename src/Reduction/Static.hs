@@ -116,7 +116,7 @@ rStaticExp = Reducer aux
         fns = maybe
           []
           (\k ->
-            [ (k, RTFunc l (rtArgOfArg <$> args) TAny fe)
+            [ (k, RTFunc l (rtArgOfArg <$> args) rt fe)
             | not (funcExists k s)
             ]
           )

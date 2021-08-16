@@ -15,7 +15,13 @@ data RTArg = RTArg
   , rtArgType  :: Type
   , rtArgValue :: RTVal
   }
-  deriving (Show, Eq)
+  deriving Eq
+
+instance Show RTArg where
+  show a
+    | RTNil == rtArgValue a = rtArgLabel a <> "(" <> show (rtArgType a) <> ")"
+    | otherwise = rtArgLabel a <> "(" <> show (rtArgType a) <> ") = " <> show
+      (rtArgValue a)
 
 rtArgOfArg :: Arg -> RTArg
 rtArgOfArg (Arg n t) = RTArg n t RTNil
@@ -45,7 +51,7 @@ instance Show RTVal where
       <> fromMaybe "anonymous" l
       <> ": "
       <> intercalate ", " (map show args)
-      <> " -> "
+      <> ". "
       <> show rt
   show RTNil = "nil"
 
@@ -164,23 +170,23 @@ rtParse t s
   parseResult = runParser (parserOfType t) s
 
 rtOfExp :: Type -> Exp -> RTVal
-rtOfExp _ (  LTuple  []    ) = RTNil
-rtOfExp _ (  LInt    a     ) = RTInt a
-rtOfExp _ (  LFloat  a     ) = RTFloat a
-rtOfExp _ (  LBool   a     ) = RTBool a
-rtOfExp _ (  LString a     ) = RTString a
-rtOfExp t (  LList   as    ) = RTList (fmap (rtOfExp t) as)
+rtOfExp _ (  LTuple  []       ) = RTNil
+rtOfExp _ (  LInt    a        ) = RTInt a
+rtOfExp _ (  LFloat  a        ) = RTFloat a
+rtOfExp _ (  LBool   a        ) = RTBool a
+rtOfExp _ (  LString a        ) = RTString a
+rtOfExp t (  LList   as       ) = RTList (fmap (rtOfExp t) as)
 rtOfExp t f@(Func l args rt fe) = cast t $ RTFunc l (map rtArgOfArg args) rt fe
 
 expOfRt :: RTVal -> Exp
-expOfRt (RTInt    a       ) = LInt a
-expOfRt (RTFloat  a       ) = LFloat a
-expOfRt (RTString a       ) = LString a
-expOfRt (RTBool   a       ) = LBool a
-expOfRt (RTTuple  ls      ) = LTuple $ map expOfRt ls
-expOfRt (RTList   ls      ) = LList $ map expOfRt ls
+expOfRt (RTInt    a        ) = LInt a
+expOfRt (RTFloat  a        ) = LFloat a
+expOfRt (RTString a        ) = LString a
+expOfRt (RTBool   a        ) = LBool a
+expOfRt (RTTuple  ls       ) = LTuple $ map expOfRt ls
+expOfRt (RTList   ls       ) = LList $ map expOfRt ls
 expOfRt (RTFunc l args rt f) = Func l [ Arg n v | RTArg n v _ <- args ] rt f
-expOfRt RTNil               = Nil
+expOfRt RTNil                = Nil
 
 
 typeOfRt :: RTVal -> Type
@@ -271,8 +277,8 @@ funcExists k s = assocExists (concat $ stStack s) k
 
 funcArgs :: Exp -> [Arg]
 funcArgs (Func _ as _ _) = as
-funcArgs (Cell _ f   ) = funcArgs f
-funcArgs e             = error ("call funcArgs of non-func: " <> show e)
+funcArgs (Cell _ f     ) = funcArgs f
+funcArgs e               = error ("call funcArgs of non-func: " <> show e)
 
 argName :: Arg -> String
 argName (Arg n _) = n
