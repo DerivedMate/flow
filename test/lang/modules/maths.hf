@@ -1,1 +1,2 @@
-{ ~dec: a = - a 1 }
+{ ~dec: a = - a 1 } 
+  => let ~dec 

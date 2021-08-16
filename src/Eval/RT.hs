@@ -10,6 +10,19 @@ import           Helper.AssocMap
 import           Lexer
 import           Syntax
 
+data RTArg = RTArg
+  { rtArgLabel :: String
+  , rtArgType  :: Type
+  , rtArgValue :: RTVal
+  }
+  deriving (Show, Eq)
+
+rtArgOfArg :: Arg -> RTArg
+rtArgOfArg (Arg n t) = RTArg n t RTNil
+
+argOfRtArg :: RTArg -> Arg
+argOfRtArg (RTArg n t _) = Arg n t
+
 data RTVal
     = RTInt    Int
     | RTFloat  Double
@@ -17,7 +30,7 @@ data RTVal
     | RTBool   Bool
     | RTList   [ RTVal ]
     | RTTuple  [ RTVal ]
-    | RTFunc   Exp
+    | RTFunc   (Maybe String) [RTArg] Type FuncExp
     | RTNil
 
 instance Show RTVal where
@@ -27,13 +40,19 @@ instance Show RTVal where
   show (RTBool   a) = show a
   show (RTList   l) = "[" <> intercalate ", " (map show l) <> "]"
   show (RTTuple  t) = "(" <> intercalate ", " (map show t) <> ")"
-  show (RTFunc (Cell _ (Func l args _))) =
-    "~" <> fromMaybe "anonymous" l <> ": " <> intercalate ", " (map show args)
-  show RTNil      = "nil"
-  show (RTFunc a) = show a
+  show (RTFunc l args rt _) =
+    "~"
+      <> fromMaybe "anonymous" l
+      <> ": "
+      <> intercalate ", " (map show args)
+      <> " -> "
+      <> show rt
+  show RTNil = "nil"
 
 instance Eq RTVal where
   RTNil           == RTNil = True
+  b               == RTNil = False
+  RTNil           == b     = False
 
   a@(RTInt    aa) == b     = let RTInt bb = unifyType a b in aa == bb
   a@(RTFloat  aa) == b     = let RTFloat bb = unifyType a b in aa == bb
@@ -41,8 +60,9 @@ instance Eq RTVal where
   a@(RTBool   aa) == b     = let RTBool bb = unifyType a b in aa == bb
   a@(RTList   aa) == b     = let RTList bb = unifyType a b in aa == bb
   a@(RTTuple  aa) == b     = let RTTuple bb = unifyType a b in aa == bb
-  a@(RTFunc   aa) == b     = let RTFunc bb = unifyType a b in aa == bb
-  RTNil           == b     = False
+  a@(RTFunc la aa fa ra) == b =
+    let RTFunc lb ab fb rb = unifyType a b
+    in  la == lb && aa == ab && fa == fb && ra == rb
 
 instance Ord RTVal where
   a@(RTInt    aa) <= b = let RTInt bb = unifyType a b in aa <= bb
@@ -51,7 +71,7 @@ instance Ord RTVal where
   a@(RTBool   aa) <= b = let RTBool bb = unifyType a b in aa <= bb
   a@(RTList   aa) <= b = let RTList bb = unifyType a b in aa <= bb
   a@(RTTuple  aa) <= b = let RTTuple bb = unifyType a b in aa <= bb
-  (  RTFunc   _ ) <= b = False
+  RTFunc{}        <= b = False
   RTNil           <= b = True
 
 
@@ -89,35 +109,32 @@ cast TInt      (  RTFloat  d ) = RTInt $ floor d
 cast TInt (RTString s) | all isNumber s = RTInt (read s)
                        | otherwise      = RTInt (length s)
 
-cast TInt         (RTBool True )           = RTInt 1
-cast TInt         (RTBool False)           = RTInt 0
+cast TInt         (RTBool True )        = RTInt 1
+cast TInt         (RTBool False)        = RTInt 0
 
-cast TInt         (RTList ls   )           = RTInt (length ls)
+cast TInt         (RTList ls   )        = RTInt (length ls)
 
 -- Float Cast
-cast TFloat       (RTInt  i    )           = RTFloat $ fromIntegral i
+cast TFloat       (RTInt  i    )        = RTFloat $ fromIntegral i
 cast TFloat a = let RTInt i = cast TInt a in RTFloat (fromIntegral i)
 -- Truthiness
-cast TBool        (RTInt    a)             = RTBool (a /= 0)
-cast TBool        (RTFloat  f)             = RTBool (f /= 0.0)
+cast TBool        (RTInt    a)          = RTBool (a /= 0)
+cast TBool        (RTFloat  f)          = RTBool (f /= 0.0)
 cast TBool (RTString s) = RTBool (s `notElem` ["", "\r\n", "\r", "\n"])
-cast TBool        (RTList   l)             = RTBool (not $ null l)
-cast TBool        RTNil                    = RTBool False
+cast TBool        (RTList   l)          = RTBool (not $ null l)
+cast TBool        RTNil                 = RTBool False
 
 -- String Cast
-cast TString      a                        = RTString (show a)
+cast TString      a                     = RTString (show a)
 
-cast (TFunc t ts) (RTFunc (Func l args e)) = RTFunc
-  (Flow
-    (Cell MNone (Func l args' e))
-    (Cell MNone (Func Nothing [Arg "$0" (last types)] (Single (Var "$0"))))
-  )
+cast (TFunc t ts) (RTFunc l args rt fe) = RTFunc l args' (last types) fe
  where
-  args' = zipWith aux (tFuncTypes ts [t]) args
+  args' = zipWith aux types args
   types = tFuncTypes ts [t]
   tFuncTypes (TFunc t f) acc = tFuncTypes f (t : acc)
   tFuncTypes t           acc = reverse $ t : acc
-  aux t (Arg n _) = Arg n t
+  aux t (RTArg n _ v) | RTNil <- v = RTArg n t v
+                      | otherwise  = RTArg n t (cast t v)
 
 cast TAny a = a
 cast t    a = error ("Unmatched type cast: " <> show a <> " -> " <> show t)
@@ -147,37 +164,33 @@ rtParse t s
   parseResult = runParser (parserOfType t) s
 
 rtOfExp :: Type -> Exp -> RTVal
-rtOfExp _ (  LTuple  []) = RTNil
-rtOfExp _ (  LInt    a ) = RTInt a
-rtOfExp _ (  LFloat  a ) = RTFloat a
-rtOfExp _ (  LBool   a ) = RTBool a
-rtOfExp _ (  LString a ) = RTString a
-rtOfExp t (  LList   as) = RTList (fmap (rtOfExp t) as)
-rtOfExp t f@(Func{}    ) = cast t $ RTFunc f
+rtOfExp _ (  LTuple  []    ) = RTNil
+rtOfExp _ (  LInt    a     ) = RTInt a
+rtOfExp _ (  LFloat  a     ) = RTFloat a
+rtOfExp _ (  LBool   a     ) = RTBool a
+rtOfExp _ (  LString a     ) = RTString a
+rtOfExp t (  LList   as    ) = RTList (fmap (rtOfExp t) as)
+rtOfExp t f@(Func l args rt fe) = cast t $ RTFunc l (map rtArgOfArg args) rt fe
 
 expOfRt :: RTVal -> Exp
-expOfRt (RTInt    a ) = LInt a
-expOfRt (RTFloat  a ) = LFloat a
-expOfRt (RTString a ) = LString a
-expOfRt (RTBool   a ) = LBool a
-expOfRt (RTTuple  ls) = LTuple $ map expOfRt ls
-expOfRt (RTList   ls) = LList $ map expOfRt ls
-expOfRt (RTFunc   f ) = f
-expOfRt RTNil         = Nil
+expOfRt (RTInt    a       ) = LInt a
+expOfRt (RTFloat  a       ) = LFloat a
+expOfRt (RTString a       ) = LString a
+expOfRt (RTBool   a       ) = LBool a
+expOfRt (RTTuple  ls      ) = LTuple $ map expOfRt ls
+expOfRt (RTList   ls      ) = LList $ map expOfRt ls
+expOfRt (RTFunc l args rt f) = Func l [ Arg n v | RTArg n v _ <- args ] rt f
+expOfRt RTNil               = Nil
 
 
 typeOfRt :: RTVal -> Type
-typeOfRt (  RTInt    _                             ) = TInt
-typeOfRt (  RTFloat  _                             ) = TFloat
-typeOfRt (  RTString _                             ) = TString
-typeOfRt (  RTBool   _                             ) = TBool
-typeOfRt (  RTList   (l    : _                    )) = TList (typeOfRt l)
-typeOfRt r@(RTFunc   (Cell _ (Func _ (a : args) _))) = foldr
-  aux
-  (TFunc (argType a))
-  args
-  TAny
-  where aux a f = TFunc (f (argType a))
+typeOfRt (  RTInt    _              ) = TInt
+typeOfRt (  RTFloat  _              ) = TFloat
+typeOfRt (  RTString _              ) = TString
+typeOfRt (  RTBool   _              ) = TBool
+typeOfRt (  RTList   (l : _)        ) = TList (typeOfRt l)
+typeOfRt r@(RTFunc l (a : args) rt f) = foldr aux (TFunc (rtArgType a)) args rt
+  where aux a f = TFunc (f (rtArgType a))
 
 typeOfRt r = pTraceShow r $ error ("Unknown typeOfRt: " <> show r)
 
@@ -255,17 +268,9 @@ rtLength _             = 1
 funcExists :: String -> State -> Bool
 funcExists k s = assocExists (concat $ stStack s) k
 
-funcFind :: String -> State -> Exp
-funcFind k s = toExp $ aux (concat $ stStack s)
- where
-  toExp (RTFunc f) = f
-  toExp _          = Nil
-  aux [] = RTNil
-  aux ((k', v) : ds) | k == k'   = v
-                     | otherwise = aux ds
 
 funcArgs :: Exp -> [Arg]
-funcArgs (Func _ as _) = as
+funcArgs (Func _ as _ _) = as
 funcArgs (Cell _ f   ) = funcArgs f
 funcArgs e             = error ("call funcArgs of non-func: " <> show e)
 

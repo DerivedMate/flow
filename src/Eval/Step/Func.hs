@@ -9,27 +9,45 @@ import           Eval.Step.Common
 import           Syntax
 
 stepFunc :: StepFunction -> StepFunction
-stepFunc step node@(Func l args f_body) s =
+stepFunc step node@(Func l args rt f_body) s =
   let
       -- Define the function if is labeled
-      fns = maybe [] (\k -> [ (k, RTFunc node) | not (funcExists k s) ]) l
+    fns = maybe
+      []
+      (\k ->
+        [ (k, RTFunc l (rtArgOfArg <$> args) TAny f_body)
+        | not (funcExists k s)
+        ]
+      )
+      l
 
-      -- Check for partial application
-      (last, vars, doRun) = if length args > rtLength (stLast s)
-        then
-          let (appliedArgs, leftArgs) = splitAt (rtLength (stLast s)) args
-          in  ( RTFunc (Func l leftArgs f_body)
-              , assignVars (stLast s) appliedArgs
-              , False
+    -- Check for partial application
+    (last, vars, doRun) = if length args > rtLength (stLast s)
+      then
+        let (appliedArgs, leftArgs) = splitAt (rtLength (stLast s)) args
+        in  ( RTFunc
+              l
+              (  bindArgs (stLast s) appliedArgs
+              <> [ RTArg n t RTNil | Arg n t <- leftArgs ]
               )
-        else (RTNil, assignVars (stLast s) args, True)
-      f' = vars `union` fns
-      s' = State { stLast = last, stStack = f' : stStack s }
-  in  if doRun then stepFExp f_body s' else pure [Datum Nil s']
+              TAny
+              f_body
+            , []
+            , False
+            )
+      else (RTNil, assignVars (stLast s) args <> fns, True)
+    f' = vars
+    s' = State { stLast = last, stStack = f' : stStack s }
+  in
+    if doRun then stepFExp f_body s' else pure [Datum Nil s']
  where
+  bindArgs :: RTVal -> [Arg] -> [RTArg]
+  bindArgs l args =
+    let tArgs = map (\(Arg n t) -> (n, t)) args
+    in  [ RTArg n t v | ((n, t), v) <- tArgs `zip` deTuple l ]
   stepFExp :: FuncExp -> State -> IO [Datum]
-  stepFExp FNil         s = pure [Datum Nil s]
-  stepFExp (Single a  ) s = step (Anchor AClosure node a) s
+  stepFExp FNil s = pure [Datum Nil (s { stStack = tail . stStack $ s })]
+  stepFExp (Single a) s = step (Anchor AClosure node a) s
   stepFExp (Cond c a b) s = exhaust step c s >>= matchResult . cast TBool
    where
     matchResult (RTBool True ) = stepFExp (Single a) s
@@ -44,13 +62,22 @@ stepFunc step node@(Func l args f_body) s =
       <> show c
       )
 
-stepFunc step (FRef k) s = do
-  if funcExists k s
-    then step f s
-    else error ("Undefined function '" <> k <> "'. State:\n" <> show s)
-  where f = funcFind k s
+stepFunc step (FRef k) s = if funcExists k s
+  then step f s'
+  else error ("Undefined function '" <> k <> "'. State:\n" <> show s)
+ where
+  splatLast :: RTVal -> [RTVal]
+  splatLast (RTTuple ls) = ls
+  splatLast r            = [r]
+  Just (RTFunc l args rt fe) = getVar k s
+  s'                         = s
+    { stLast = RTTuple
+               $  [ v | RTArg _ _ v <- args, RTNil /= v ]
+               <> (splatLast . stLast) s
+    }
+  f = Func l (argOfRtArg <$> args) rt fe
 
-stepFunc _ (Var k) s | Just (RTFunc f) <- v = pure [Datum f s]
+stepFunc _ (Var k) s | Just RTFunc{} <- v = pure [Datum (FRef k) s]
                      | Just vv <- v = pure [Datum Nil s { stLast = vv }]
                      | otherwise = error ("variable '" <> k <> "' not found")
   where v = getVar k s

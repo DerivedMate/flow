@@ -3,4 +3,4 @@
 { ~print: a = 
     { a } => ~toStr 
           => { <~ Str } 
-}
+} => let ~print
