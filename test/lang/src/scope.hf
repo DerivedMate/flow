@@ -2,7 +2,7 @@
     Ensure stack popping, and no stack override.
 %%
 { 1 } => { a(Int) = { + 1 a } => { a(Int) = + 1 a  } %% a = 2 leaks 
-                                                        if the stack 
+                                                        if the scope 
                                                         isn't popped
                                                      %%
                               => { b(Int) = [a, b] }

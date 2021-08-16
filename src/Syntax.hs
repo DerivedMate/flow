@@ -3,6 +3,7 @@
 module Syntax where
 import           Control.Applicative
 import           Control.Monad
+import           Data.Bifunctor
 import           Data.Char
 import           Data.Functor
 import           Lexer
@@ -10,7 +11,6 @@ import           Module.Module
 import           PreProcessor
 import           System.IO
 import           Text.Pretty.Simple
-import Data.Bifunctor
 
 data ParseResult = ParseResult
   { prExp  :: Maybe Exp
@@ -40,6 +40,8 @@ data FMod
   | MGen
   | MFold
   | MUnfold
+  | MLet
+  | MExport
   deriving ( Show, Eq )
 
 data Type
@@ -98,7 +100,7 @@ data Exp
   | Capture CType
   | Label String
   | Cell FMod Exp
-  | Func (Maybe String) [Arg] FuncExp
+  | Func (Maybe String) [Arg] Type FuncExp
   | Io IoExp
   | Flow Exp Exp
   | FRef String
@@ -195,7 +197,7 @@ pType = _pFunc <|> simple
 :--------------------------------}
 
 program :: Parser Exp
-program = (Program <$> flow <*> program) <|> token flow
+program = (Program <$> flow <*> program) <|> flow
 
 expr :: Parser Exp
 expr = term <|> flow
@@ -212,8 +214,9 @@ cell =
     <|> (Cell <$> (fMod <|> pure MNone) <*> enclosed
           (token (char '{'))
           (token (char '}'))
-          (func <|> token fRef <|> expr)
+          innerExp
         )
+  where innerExp = func <|> token fRef <|> expr
 
 term :: Parser Exp
 term =
@@ -249,19 +252,23 @@ casting =
 
 fMod :: Parser FMod
 fMod =
-  (MMap <$ token (string "map"))
-    <|> (MKeepEnum <$ token (string "keep[]"))
-    <|> (MKeep <$ token (string "keep"))
-    <|> (MGen <$ token (string "gen"))
-    <|> (MFold <$ token (string "fold"))
-    <|> (MUnfold <$ token (string "unfold"))
+        (MMap      <$ tString "map"   )
+    <|> (MKeepEnum <$ tString "keep[]")
+    <|> (MKeep     <$ tString "keep"  )
+    <|> (MGen      <$ tString "gen"   )
+    <|> (MFold     <$ tString "fold"  )
+    <|> (MUnfold   <$ tString "unfold")
+    <|> (MLet      <$ tString "let"   )
+    <|> (MExport   <$ tString "export")
+    where tString = token . string
 
 func :: Parser Exp
 func =
   Func
     <$> optional (token label)
     <*> (token args <|> pure [])
-    <*  token (char '=')
+    <*> (token returnType <|> pure TAny)
+    <*  token (string "=")
     <*> token fBody
 
 fRef :: Parser Exp
@@ -278,16 +285,20 @@ arg =
 args :: Parser [Arg]
 args = sepBy (token (char ',')) arg
 
+returnType :: Parser Type
+returnType = token (char '.') *> (maybeEnclosed (char '(') (char ')') pType)
+
 fBody :: Parser FuncExp
 fBody =
   (   Cond
     <$> token expr
     <*  token (char '|')
-    <*> token expr
+    <*> e
     <*> (fBody <|> pure FNil)
     )
-    <|> (Single <$ token (char '|') <*> token expr)
-    <|> (Single <$> token expr)
+    <|> (Single <$ token (char '|') <*> e)
+    <|> (Single <$> e)
+  where e = token (program <|> expr)
 
 
 

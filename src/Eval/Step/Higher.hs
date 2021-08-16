@@ -34,7 +34,8 @@ stepHigher step (Cell MMap e) s0 =
 
 
 stepHigher step (Anchor AKeep v e) s
-  | e == Nil, RTBool True <- discriminant = pure [Datum Nil s { stLast = rtOfExp TAny v }]
+  | e == Nil, RTBool True <- discriminant = pure
+    [Datum Nil s { stLast = rtOfExp TAny v }]
   | e == Nil, RTBool False <- discriminant = pure []
   | otherwise = step e s <&> map reWrap
  where
@@ -183,9 +184,29 @@ stepHigher step (Anchor AFold e0 e) s
               (s' { stLast = RTTuple [stLast s', RTList xs] })
 
 
-stepHigher step (Anchor AClosure (Func l args _) Nil) s =
-  pure [Datum Nil s] <&> (: []) . head . correctLast args
+stepHigher step (Anchor AClosure (Func l args rt _) Nil) s =
+  pure
+    [Datum Nil s { stLast = cast rt (stLast s), stStack = tail . stStack $ s }] -- <&> (: []) . head . correctLast args
 stepHigher step (Anchor AClosure f e) s =
   step e s <&> map (\(Datum e' s') -> Datum (Anchor AClosure f e') s')
+
+stepHigher step (Cell MLet e) s
+  | null (stStack s) = pure [Datum Nil s { stLast = l', stStack = [bindings] }]
+  | f : fs <- stStack s = pure
+    [Datum Nil s { stLast = l', stStack = (bindings <> f) : fs }]
+
+ where
+  bindings = subBind (stLast s) e
+  l'       = RTTuple (snd <$> bindings)
+  subBind :: RTVal -> Exp -> Frame
+  subBind l e'
+    | Var k <- e'
+    = [(k, l)]
+    | FRef k <- e'
+    = subBind l (Var k)
+    | LTuple ks <- e'
+    = concat $ zipWith subBind (deTuple l) ks
+    | otherwise
+    = error $ "[runtime error]: cannot bind " <> show l <> " to " <> show e
 
 stepHigher _ d _ = error $ "Unmatched expression in `stepHigher`: \n" <> show d

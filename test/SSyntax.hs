@@ -419,6 +419,7 @@ testFunc
               Func 
                 Nothing
                 []
+                TAny
                 (Single (LInt 1) )
             )
           ) Nil
@@ -433,11 +434,42 @@ testFunc
               Func 
                 (Just "const_1")
                 []
+                TAny
                 (Single (LInt 1) )
             )
           ) Nil
         ))
         (prun "{ ~const_1: = 1 }")
+      ),
+      TestCase (
+        assertEqual "No args, with bare return"
+        (properTree (
+          Flow (
+            Cell MNone (
+              Func 
+                (Just "const_1")
+                []
+                TInt
+                (Single (LInt 1) )
+            )
+          ) Nil
+        ))
+        (prun "{ ~const_1:.Int = 1 }")
+      ),
+      TestCase (
+        assertEqual "No args, with enclosed return"
+        (properTree (
+          Flow (
+            Cell MNone (
+              Func 
+                (Just "const_1")
+                []
+                TInt
+                (Single (LInt 1) )
+            )
+          ) Nil
+        ))
+        (prun "{ ~const_1:.(Int) = 1 }")
       ),
 
 
@@ -454,6 +486,7 @@ testFunc
               Func 
                 Nothing
                 [Arg "a" TInt]
+                TAny
                 (Single (
                   BinOp OpAdd
                     (Var "a")
@@ -472,6 +505,7 @@ testFunc
               Func 
                 (Just "inc")
                 [Arg "a" TInt]
+                TAny
                 (Single (
                   BinOp OpAdd
                     (Var "a")
@@ -499,6 +533,7 @@ testFunc
                 [ Arg "a" TInt
                 , Arg "b" TInt
                 ]
+                TAny
                 (Single (
                   BinOp OpAdd
                     (Var "a")
@@ -509,7 +544,69 @@ testFunc
         ))
         (prun "{ ~sum_int: a (Int), b(Int) = + a b }")
       ),
+      TestCase (
+        assertEqual "Sum with return"
+        (properTree (
+          Flow (
+            Cell MNone (
+              Func 
+                (Just "sum_int")
+                [ Arg "a" TInt
+                , Arg "b" TInt
+                ]
+                TFloat
+                (Single (
+                  BinOp OpAdd
+                    (Var "a")
+                    (Var "b")
+                ))
+            )
+          ) Nil
+        ))
+        (prun "{ ~sum_int: a (Int), b (Int) . Float = + a b }")
+      ),
 
+      
+
+
+      {--------------------------------:
+          Return Type
+      :--------------------------------}
+      TestCase (
+        assertEqual "Triple chained addition"
+        (properTree (
+          Flow (
+            Cell MNone (
+              Func 
+                (Just "sum_int")
+                [ Arg "a" TInt
+                , Arg "b" TInt
+                ]
+                (TFunc TInt TInt)
+                (Single (
+                  Flow 
+                    (Cell MNone (
+                      Func 
+                        Nothing
+                        [ Arg "c" TInt ]
+                        TInt
+                        (Single (
+                          BinOp OpAdd
+                            (BinOp OpAdd
+                              (Var "a")
+                              (Var "b")
+                            )
+                            (Var "c")
+                          )
+                        )
+                    ))
+                    Nil
+                ))
+            )
+          ) Nil
+        ))
+        (prun "{ ~sum_int: a (Int), b (Int) . Int -> Int = { c(Int) . Int = (+ (+ a b) c) } }")
+      ),
 
 
 
@@ -526,6 +623,7 @@ testFunc
                 [ Arg "a" TInt
                 , Arg "b" TInt
                 ]
+                TAny
                 (Cond
                   ( BinOp OpGt
                       (Var "a")
@@ -555,6 +653,7 @@ testFunc
                 , Arg "b" TInt
                 , Arg "c" TInt
                 ]
+                TAny
                 (Cond
                   ( BinOp OpAnd
                       ( BinOp OpGt
@@ -595,7 +694,7 @@ testEaxmples
   = TestList [ TestCase (
                 do 
                 let 
-                  exp = Just (Program (Flow (Cell MNone (LTuple [Io (IoStdIn TInt),LInt 1])) (Flow (Cell MNone (Func (Just "fact") [Arg "a" TInt,Arg "b" TInt] (Cond (BinOp OpGt (Var "a") (LInt 1)) (Flow (Cell MNone (LTuple [BinOp OpSub (Var "a") (LInt 1),BinOp OpMul (Var "a") (Var "b")])) (Flow (FRef "fact") Nil)) (Single (Flow (Cell MNone (Var "b")) Nil))))) (Flow (Cell MNone (Io (IoStdOut TInt))) Nil))) Nil)
+                  exp = Just (Program (Flow (Cell MNone (LTuple [Io (IoStdIn TInt),LInt 1])) (Flow (Cell MNone (Func (Just "fact") [Arg "a" TInt,Arg "b" TInt] TAny (Cond (BinOp OpGt (Var "a") (LInt 1)) (Flow (Cell MNone (LTuple [BinOp OpSub (Var "a") (LInt 1),BinOp OpMul (Var "a") (Var "b")])) (Flow (FRef "fact") Nil)) (Single (Flow (Cell MNone (Var "b")) Nil))))) (Flow (Cell MNone (Io (IoStdOut TInt))) Nil))) Nil)
                   aux (Right r) = assertEqual "Factorial" exp . prExp $ r
                   aux (Left msg) = assertFailure msg
                 

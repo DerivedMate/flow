@@ -81,6 +81,9 @@ num = negate <$> (char '-' *> natural)
 enclosed :: Parser l -> Parser r -> Parser a -> Parser a
 enclosed l r p = l *> p <* r
 
+maybeEnclosed :: Parser l -> Parser r -> Parser a -> Parser a
+maybeEnclosed l r p = enclosed l r p <|> token p
+
 token :: Parser a -> Parser a
 token p = ss *> p <* ss
 

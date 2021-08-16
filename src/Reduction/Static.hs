@@ -110,19 +110,28 @@ rStaticExp = Reducer aux
     = case getCapture c s of
       Right l' -> Rd True (s { stLast = l' }) (expOfRt l')
       Left  _  -> Rd False s e
-    | Func l args fe <- e
+    | Func l args rt fe <- e
     , isNothing l
-    = let fns = maybe [] (\k -> [ (k, RTFunc e) | not (funcExists k s) ]) l
-          (appliedArgs, leftArgs) = splitAt ((rtLength . stLast) s) args
-          vars                    = assignVars (stLast s) appliedArgs
-          doRun                   = null leftArgs
-          stack'                  = (fns <> vars) : stStack s
-          s'                      = s { stLast = RTNil, stStack = stack' }
-          Rd rfe s'' fe'          = runReducer rStaticFuncExp s' fe
-      in  Rd rfe s' { stStack = fns : stStack s } (Func l leftArgs fe')
-    | Func l args fe <- e
+    = let
+        fns = maybe
+          []
+          (\k ->
+            [ (k, RTFunc l (rtArgOfArg <$> args) TAny fe)
+            | not (funcExists k s)
+            ]
+          )
+          l
+        (appliedArgs, leftArgs) = splitAt ((rtLength . stLast) s) args
+        vars                    = assignVars (stLast s) appliedArgs
+        doRun                   = null leftArgs
+        stack'                  = (fns <> vars) : stStack s
+        s'                      = s { stLast = RTNil, stStack = stack' }
+        Rd rfe s'' fe'          = runReducer rStaticFuncExp s' fe
+      in
+        Rd rfe s' { stStack = fns : stStack s } (Func l leftArgs rt fe')
+    | Func l args rt fe <- e
     = let Rd rfe s' fe' = runReducer rStaticFuncExp (s { stLast = RTNil }) fe
-      in  Rd rfe s' (Func l args fe')
+      in  Rd rfe s' (Func l args rt fe')
     | Flow p q <- e
     = let Rd rp s'  p' = aux s p
           Rd rq s'' q' = aux s' q

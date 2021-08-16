@@ -1,9 +1,9 @@
-{ ~gen1: n(Int) = 
+{ n(Int) = 
     > n 0 | (n; - n 1) 
-}
-{ ~gen0: n(Int) = 
+} => let ~gen1
+{ n(Int) = 
     > n 0 | { n } => gen ~gen1
                   => { (&0; - &0 1) }
-}
+} => let ~gen0
 
 { 5 } => gen ~gen0 => { <~ Int }

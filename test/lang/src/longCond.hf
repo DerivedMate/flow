@@ -9,6 +9,6 @@
             => { < &0 50 }
             | True
             | False
-}
+} => let ~f
 
 {[3, 6]} => map ~f => { <~ List<Bool> }

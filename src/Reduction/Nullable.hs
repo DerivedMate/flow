@@ -89,11 +89,11 @@ rNullableExp = Reducer aux
     = Rd True s e
     | Cell m ee <- e
     = let Rd red s' ee' = aux s ee in Rd red s' (Cell m ee')
-    | Func l args fExp <- e
+    | Func l args rt fExp <- e
     = let Rd red s' fExp' = runReducer rNullableFuncExp s fExp
       in  case (fExp', null args && isNothing l) of
             (Single ee, True) -> Rd red s' ee
-            _                 -> Rd red s' (Func l args fExp')
+            _                 -> Rd red s' (Func l args rt fExp')
     | Flow p q <- e
     = let Rd redP sp' p' = aux s p
           Rd redQ sq' q' = aux sp' q
@@ -112,15 +112,15 @@ rNullableExp = Reducer aux
     = Rd False s e
 
   ignoresInput :: Exp -> Bool
-  ignoresInput e | Io (IoStdIn _) <- e = True
-                 | LInt _ <- e         = True
-                 | LBool _ <- e        = True
-                 | LString _ <- e      = True
-                 | LFloat _ <- e       = True
-                 | LList ls <- e       = all ignoresInput ls
-                 | LTuple ls <- e      = all ignoresInput ls
-                 | Cell _ ee <- e      = ignoresInput ee
-                 | Flow ee _ <- e      = ignoresInput ee
-                 | Func _ args _ <- e  = null args
-                 | otherwise           = False
+  ignoresInput e | Io (IoStdIn _) <- e  = True
+                 | LInt _ <- e          = True
+                 | LBool _ <- e         = True
+                 | LString _ <- e       = True
+                 | LFloat _ <- e        = True
+                 | LList ls <- e        = all ignoresInput ls
+                 | LTuple ls <- e       = all ignoresInput ls
+                 | Cell _ ee <- e       = ignoresInput ee
+                 | Flow ee _ <- e       = ignoresInput ee
+                 | Func _ args _ _ <- e = null args
+                 | otherwise            = False
 

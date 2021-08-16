@@ -1,8 +1,8 @@
-{ ~iter: n(Int) =
+{ n(Int) =
     > n 0 | (n; - n 1)
-}
-{ ~isOdd: n(Int) = == 1 ( % n 2 ) }
-
+} => let ~iter
+{ n(Int) = == 1 ( % n 2 ) }
+  => let ~isOdd
 { 10 } => map { n(Int) = { n } => gen { ~iter } }
        => keep[] { ~isOdd }
        => { <~ List<Int> }

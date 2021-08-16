@@ -25,3 +25,6 @@
 2021-08-09 21:27:52.071618622000 [54095(ThreadId 21)] ERROR APP - <file descriptor: 146>: hPutChar: resource vanished (Broken pipe)
 2021-08-09 21:27:55.028496966000 [54095(ThreadId 21)] ERROR APP - <file descriptor: 146>: hPutChar: resource vanished (Broken pipe)
 2021-08-09 21:28:02.016590004000 [54095(ThreadId 21)] CRITICAL APP - <file descriptor: 146>: hPutChar: resource vanished (Broken pipe)
+2021-08-16 02:53:10.185727584000 [76745(ThreadId 21)] ERROR APP - user error (variable id:10 not found.)
+2021-08-16 02:53:13.127143317000 [76745(ThreadId 21)] ERROR APP - invalid dap result from ghci. []
+2021-08-16 02:53:19.496726522000 [76745(ThreadId 21)] CRITICAL APP - <file descriptor: 149>: hPutChar: resource vanished (Broken pipe)
