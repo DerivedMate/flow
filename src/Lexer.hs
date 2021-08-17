@@ -1,102 +1,184 @@
 module Lexer where
 
-import Control.Applicative
-import Control.Monad
-import Data.Char
+import           Control.Applicative
+import           Data.Bifunctor
+import           Data.Char
+import           Data.Either
+import           Data.Function
+import           Data.Functor
+import           Data.List
+import           Text.Pretty.Simple
 
-newtype Parser a = 
-  P { runParser :: String -> Maybe (a, String) } 
+data ParseResult a = ParseResult
+  { prResult     :: a
+  , prNewContext :: ParseContext
+  }
+  deriving (Show, Eq)
+
+instance Functor ParseResult where
+  fmap f pr = pr { prResult = f . prResult $ pr }
+
+data ParseError = ParseError
+  { peContext  :: ParseContext
+  , peExpected :: String
+  , peGot      :: String
+  }
+  deriving (Show, Eq)
+
+data ParseContext = ParseContext
+  { ctxLine   :: Int
+  , ctxColumn :: Int
+  , ctxString :: String
+  }
+  deriving (Show, Eq)
+
+qcCtxOfString :: String -> ParseContext
+qcCtxOfString = ParseContext 1 1
+
+type PReturn a = Either ParseError (ParseResult a)
+newtype Parser a
+  = Parser { runParser :: ParseContext -> [PReturn a]}
 
 instance Functor Parser where
-  fmap f (P p) = P $ \s -> do
-    (x', s') <- p s
-    return (f x', s')
+  fmap f p = Parser $ \c -> let rs = runParser p c in map (second (fmap f)) rs
 
 instance Applicative Parser where
-  pure a = P $ \s -> return (a, s)
-  (P f) <*> (P p) = P $ \s -> do
-    (f', s')  <- f s
-    (p', s'') <- p s'
-    return (f' p', s'')
+  pure a = Parser $ \c -> [Right $ ParseResult a c]
+  fp <*> qp = Parser $ \c ->
+    let (frsE, frsR) = partitionEithers $ runParser fp c
+        (qrsE, qrsR) =
+          partitionEithers $ concatMap (runParser qp . prNewContext) frsR
+    in  [ Right (fmap f q) | q <- qrsR, f <- prResult <$> frsR ]
+        <> map Left (frsE <> qrsE)
 
 instance Monad Parser where
-  (P p) >>= f = P $ \s -> do
-    (p', s') <- p s
-    runParser (f p') s'
+  qp >>= f = Parser $ \c ->
+    let (qrsE, qrsR) = partitionEithers $ runParser qp c
+        frss =
+          zipWith runParser (map (f . prResult) qrsR) (map prNewContext qrsR)
+    in  concat frss <> map Left qrsE
 
 instance MonadFail Parser where
-  fail _ = P (const Nothing)
+  fail _ = Parser $ const []
 
-instance Alternative Parser where
-  empty = fail ""
-  (P a) <|> (P b) = P $ \s -> a s <|> b s
+class (Applicative f) => QCAlternative f where
+  qcEmpty :: Eq a => f a
 
-instance MonadPlus Parser where
-  mzero = empty
-  mplus = (<|>)
+  infixl 3 <+>
+  (<+>) :: Eq a => f a -> f a -> f a
 
-char :: Char -> Parser Char
-char c = P aux
-  where 
-    aux (c':s') | c' == c = return (c, s')
-    aux _                 = empty
+  infixl 3 <@>
+  (<@>) :: Eq a => f a -> f a -> f a
 
-string :: String -> Parser String
-string = mapM char
+  qcSome :: Eq a => f a -> f [a]
+  qcSome v = some_v
+    where
+      many_v = some_v <+> pure []
+      some_v = liftA2 (:) v many_v
 
-pre :: (Char -> Bool) -> Parser Char
-pre f = P aux
-  where 
-    aux (c:s) | f c = return (c, s)
-    aux _           = empty
+  -- | Zero or more.
+  qcMany :: Eq a => f a -> f [a]
+  qcMany v = many_v
+    where
+      many_v = some_v <+> pure []
+      some_v = liftA2 (:) v many_v
 
-pOr :: [( Char -> Bool )] -> Parser Char
-pOr predicates = P aux
-  where
-    aux (c:s)
-      | or [predicate c | predicate <- predicates] 
-      = return ( c, s )
-      | otherwise                                  
-      = empty
-    aux _ = empty
+instance QCAlternative Parser where
+  qcEmpty = Parser $ const []
+  p <+> q = Parser $ \c ->
+    let rp = runParser p c
+        rq = runParser q c
+    in  nub $ rp `union` rq
+
+  p <@> q = Parser $ \c ->
+    let rp = runParser p c
+        rq = runParser q c
+    in  if (null . rights) rp then nub rq else nub rp
 
 
-space :: Parser Char
-space = pre isSeparator <|> pre isSpace
+data InCtx a = InCtx
+  { incV   :: a
+  , incCtx :: ParseContext
+  }
+  deriving (Show, Eq)
 
-ss :: Parser String
-ss = many space 
+qcChar :: Char -> Parser Char
+qcChar k = Parser aux
+ where
+  aux :: ParseContext -> [PReturn Char]
+  aux c
+    | s@(k' : ks) <- ctxString c
+    , k' == k
+    = let dl = ((-) `on` (length . lines)) s ks
+          dc | dl > 0    = -(ctxColumn c) + 1
+             | otherwise = 1
+      in  [ Right $ ParseResult
+              { prResult     = k
+              , prNewContext = c { ctxColumn = ctxColumn c + dc
+                                 , ctxLine   = ctxLine c + dl
+                                 , ctxString = ks
+                                 }
+              }
+          ]
+    | (k' : _) <- ctxString c
+    = [Left $ ParseError { peContext = c, peExpected = [k], peGot = [k'] }]
+    | otherwise
+    = [Left $ ParseError { peContext = c, peExpected = [k], peGot = "" }]
 
-nat :: Parser Char
-nat = pre isDigit
+qctChar :: Char -> Parser Char
+qctChar = qcToken . qcChar
 
-natural :: Parser Int
-natural = read <$> some nat
+qcStr :: String -> Parser String
+qcStr = mapM qcChar
 
-num :: Parser Int
-num = negate <$> (char '-' *> natural) 
-             <|> (char '+' *> natural)
-             <|>              natural
+qctStr :: String -> Parser String
+qctStr = qcToken . qcStr  
 
-enclosed :: Parser l -> Parser r -> Parser a -> Parser a
-enclosed l r p = l *> p <* r
+qcProp :: (Char -> Bool) -> Parser Char
+qcProp f = Parser aux
+ where
+  aux c | k : ks <- ctxString c, f k = runParser (qcChar k) c
+        | otherwise                  = []
 
-maybeEnclosed :: Parser l -> Parser r -> Parser a -> Parser a
-maybeEnclosed l r p = enclosed l r p <|> token p
+qcNat :: Parser Char
+qcNat = qcProp isDigit
 
-token :: Parser a -> Parser a
-token p = ss *> p <* ss
+qcNatural :: Parser Int
+qcNatural = read <$> qcSome qcNat
 
-letter :: Parser Char
-letter = pre isLetter
+qcNum :: Parser Int
+qcNum = qcSigned qcNatural
 
-mark :: Parser Char
-mark = pre isMark
+qcSigned :: (Eq a, Num a) => Parser a -> Parser a
+qcSigned p =
+  (*) <$> ((qcChar '-' $> (-1)) <+> (qcChar '+' $> 1) <+> pure 1) <*> p
 
-sepBy :: Parser sep -> Parser el -> Parser [el]
-sepBy sep el = do
-              a    <- el
-              _    <- token sep
-              rest <- sepBy sep el
-              return (a : rest)  
-         <|> (pure <$> token el)
+qcSS :: Parser String
+qcSS = qcMany (qcProp (`elem` " \t\r\n"))
+
+qcToken :: Parser a -> Parser a
+qcToken p = qcSS *> p <* qcSS
+
+qcEnclosedBy :: Parser l -> Parser r -> Parser p -> Parser p
+qcEnclosedBy l r p = l *> qcToken p <* r
+
+qcMaybeEnclosedBy
+  :: (Eq l, Eq r, Eq p) => Parser l -> Parser r -> Parser p -> Parser p
+qcMaybeEnclosedBy l r p = qcEnclosedBy l r p <+> p
+
+qcSeparatedBy :: (Eq s, Eq e) => Parser s -> Parser e -> Parser [e]
+qcSeparatedBy s e = ((:) <$> (e <* s) <*> qcSeparatedBy s e) <+> (: []) <$> e
+
+data E
+  = EInt Int
+  | EList [E]
+  | ETuple [E]
+  deriving (Show, Eq)
+
+qcLE :: Parser E
+qcLE = _list <+> _tuple <+> _int
+ where
+  _int   = EInt <$> qcNatural
+  _tuple = ETuple <$> qcEnclosedBy (qcChar '(') (qcChar ')') _tlc
+  _list  = EList <$> qcEnclosedBy (qcChar '[') (qcChar ']') _tlc
+  _tlc   = qcSeparatedBy (qcToken (qcChar ',')) qcLE

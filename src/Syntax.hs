@@ -1,23 +1,20 @@
-{-# LANGUAGE TupleSections #-}
-
 module Syntax where
+
 import           Control.Applicative
 import           Control.Monad
 import           Data.Bifunctor
 import           Data.Char
+import           Data.Either
+import           Data.Function
 import           Data.Functor
+import           Data.List
+import           Data.Maybe
+import           Data.Ord
 import           Lexer
 import           Module.Module
 import           PreProcessor
 import           System.IO
 import           Text.Pretty.Simple
-
-data ParseResult = ParseResult
-  { prExp  :: Maybe Exp
-  , prLeft :: Maybe String
-  , prSrc  :: String
-  }
-  deriving (Show, Eq)
 
 data CType
   = CSingle Int
@@ -52,7 +49,7 @@ data Type
   | TBool
   | TList Type
   | TFunc Type Type
-  | TTuple Type Type
+  | TTuple [Type]
   | TAny
   deriving ( Show, Eq )
 
@@ -118,79 +115,81 @@ data Exp
     Literals
 :--------------------------------}
 
-literal :: Parser Exp
-literal = tuple <|> list <|> str <|> float <|> bool <|> int
+flLiteral :: Parser Exp
+flLiteral = flTuple <+> flList <+> flStr <+> flFloat <+> flBool <+> flInt
 
-int :: Parser Exp
-int = LInt <$> num
+flInt :: Parser Exp
+flInt = LInt <$> qcNum
 
-float :: Parser Exp
-float =
-  LFloat
-    <$> (do
-          a <- num
-          _ <- char '.'
-          b <- natural <|> pure 0
-          return (read (show a <> "." <> show b))
+flFloat :: Parser Exp
+flFloat =
+  LFloat 
+  <$> (do
+    a <- qcNum
+    _ <- qcChar '.'
+    b <- qcNatural <+> pure 0
+    return (read $ show a <> "." <> show b)
+  )
+
+flBool :: Parser Exp
+flBool = LBool <$> ( (qcStr "True"  $> True) 
+               <+>   (qcStr "False" $> False)
+                 )
+
+flStr :: Parser Exp
+flStr = LString <$> qcEnclosedBy 
+                      (qcChar '`') 
+                      (qcChar '`') 
+                      (qcMany $ qcProp (/= '`')
+                    )
+
+flTuple :: Parser Exp
+flTuple = LTuple 
+  <$> qcEnclosedBy 
+        (qcChar '(') 
+        (qcChar ')') 
+        ( qcSeparatedBy 
+          (qctChar ',')
+          flTerm
         )
 
-bool :: Parser Exp
-bool = LBool . read <$> (string "True" <|> string "False")
-
-str :: Parser Exp
-str = LString <$> enclosed (char '`') (char '`') (many beginning)
-  where beginning = pre (\c -> isLatin1 c && c `notElem` "`")
-
-list :: Parser Exp
-list =
-  LList
-    <$> enclosed (token (char '['))
-                 (token (char ']'))
-                 (sepBy (token (char ',')) term)
-    <|> token (char '[')
-    *>  token (char ']')
-    $>  LList []
-
-tuple :: Parser Exp
-tuple =
-  LTuple
-    <$> enclosed (token (char '('))
-                 (token (char ')'))
-                 (sepBy (token (char ';')) term)
-    <|> token (char '(')
-    *>  token (char ')')
-    $>  LTuple []
+flList :: Parser Exp
+flList = LList 
+  <$> qcEnclosedBy 
+        (qcChar '[') 
+        (qcChar ']') 
+        ( qcSeparatedBy 
+          (qctChar ',')
+          flTerm
+        )
 
 
 
 
 {--------------------------------:
-    Type annotations
+    Types
 :--------------------------------}
 
-pType :: Parser Type
-pType =  _pFunc <|> simple
- where
-  simple =
-    (TInt <$ token (string "Int"))
-      <|> (TFloat  <$ token (string "Float"))
-      <|> (TString <$ token (string "Str"))
-      <|> (TBool   <$ token (string "Bool"))
-      <|> (TList   <$> _pList)
-      <|> (TAny    <$ token (string "Any"))
-  _pList =
-    string "List"
-      *>  enclosed (char '<') (char '>') (token pType)
-      <|> string "List"
-      $>  TAny
-  _pFunc =
-    do
-      a <- token simple
-      _ <- token (string "->")
-      b <- token _pFunc
-      return (TFunc a b)
-    <|> simple
-
+flType :: Parser Type
+flType = _simple <+> _func <+> _list
+  where
+    _simple =  ( TInt    <$ qctStr "Int"   )
+           <@> ( TFloat  <$ qctStr "Float" )
+           <@> ( TString <$ qctStr "Str"   )
+           <@> ( TString <$ qctStr "Bool"  )
+           <@> ( TAny    <$ qctStr "Any"   )
+    _list   = 
+      TList <$>
+      qcEnclosedBy 
+        (qctChar '[')
+        (qctChar ']')
+        flType
+    _func   =
+      (TFunc <$> __notFunc 
+             <*  qctStr "->"
+             <*> _func
+      ) <@> _simple 
+    __notFunc = _list <@> _simple
 
 
 
@@ -198,53 +197,63 @@ pType =  _pFunc <|> simple
     Expressions
 :--------------------------------}
 
-program :: Parser Exp
-program = (Program <$> flow <*> program) <|> flow
+flProgram :: Parser Exp
+flProgram = (Program <$> flFlow <*> flProgram) <+> flFlow
 
-expr :: Parser Exp
-expr = term <|> flow
+flExpr :: Parser Exp
+flExpr = flTerm <+> flFlow
 
-flow :: Parser Exp
-flow =
-  (Flow <$> token cell <* token (string "=>") <*> token flow)
-    <|> (Flow <$> cell <*> pure Nil)
+flFlow :: Parser Exp
+flFlow =
+  ( Flow <$> qcToken flCell 
+         <*  qctStr "=>"
+         <*> flFlow 
+  ) <+> 
+  ( Flow <$> flCell <*> pure Nil )
 
-cell :: Parser Exp
-cell =
-  token fRef
-    <|> (Cell <$> fMod <*> token fRef)
-    <|> (Cell <$> (fMod <|> pure MNone) <*> enclosed
-          (token (char '{'))
-          (token (char '}'))
-          innerExp
-        )
-  where innerExp = func <|> token fRef <|> expr
+flCell :: Parser Exp
+flCell = 
+      qcToken flFRef 
+  <+> ( Cell <$> flFMod <*> qcToken flFRef )
+  <+> ( Cell <$> ( flFMod <+> pure MNone )
+             <*> qcMaybeEnclosedBy  
+                    (qctChar '{')
+                    (qctChar '}')
+                   _innerExp
+      )
+  where _innerExp = flFunc <+> flExpr
 
-term :: Parser Exp
-term =
-  casting
-    <|> enclosed (char '(') (char ')') (token term)
-    <|> io
-    <|> literal
-    <|> binaryOp
-    <|> token var
+flTerm :: Parser Exp
+flTerm =
+      flCast 
+  <+> qcEnclosedBy 
+        (qcToken (qcChar '(')) 
+        (qcToken (qcChar ')')) 
+        flTerm
+  <+> flIo
+  <+> flLiteral
+  <+> flBinaryOp
+  <+> flVar
 
-identifier :: Parser String
-identifier =
-  do
-    a0 <- pre isLetter
-    as <- some (pOr [isLetter, isDigit, (`elem` "_")])
-    return (a0 : as)
-  <|> some (pre isLetter)
+flId :: Parser String
+flId = (:) <$> qcProp _fst
+           <*> qcMany (qcProp (\c -> or [f c | f <- [isLetter, isDigit, (`elem` "_'")]]))
+        where _fst c = isLetter c || c `elem` "_'"
 
+flCast :: Parser Exp 
+flCast = 
+  Casting 
+  <$> qcMaybeEnclosedBy 
+        (qctChar '(') 
+        (qctChar ')') 
+        (qcToken _subTerm)
+  <*  qctStr "::"
+  <*> qcMaybeEnclosedBy 
+        (qctChar '(') 
+        (qctChar ')') 
+        (qcToken flType)
+  where _subTerm = flIo <+> flLiteral <+> flBinaryOp <+> flVar
 
-casting :: Parser Exp
-casting =
-  Casting
-    <$> token (enclosed (char '(') (char ')') (token subTerm) <|> subTerm)
-    <*  token (string "::")
-    <*> (enclosed (char '(') (char ')') (token pType) <|> token pType)
-  where subTerm = io <|> literal <|> binaryOp <|> token var
 
 
 
@@ -252,57 +261,61 @@ casting =
     Functions
 :--------------------------------}
 
-fMod :: Parser FMod
-fMod =
-        (MMap      <$ tString "map"   )
-    <|> (MKeepEnum <$ tString "keep[]")
-    <|> (MKeep     <$ tString "keep"  )
-    <|> (MGen      <$ tString "gen"   )
-    <|> (MFold     <$ tString "fold"  )
-    <|> (MUnfold   <$ tString "unfold")
-    <|> (MLet      <$ tString "let"   )
-    <|> (MExport   <$ tString "export")
-    <|> (MLazy     <$ tString "lazy")
-    where tString = token . string
+flFMod :: Parser FMod
+flFMod = (MMap      <$ qctStr "map"   )
+     <+> (MKeepEnum <$ qctStr "keep[]")
+     <+> (MKeep     <$ qctStr "keep"  )
+     <+> (MGen      <$ qctStr "gen"   )
+     <+> (MFold     <$ qctStr "fold"  )
+     <+> (MUnfold   <$ qctStr "unfold")
+     <+> (MLet      <$ qctStr "let"   )
+     <+> (MExport   <$ qctStr "export")
+     <+> (MLazy     <$ qctStr "lazy"  )
 
-func :: Parser Exp
-func =
-  Func
-    <$> optional (token label)
-    <*> (token args <|> pure [])
-    <*  token (char '.')
-    <*> (token returnType <|> pure TAny)
-    <*> token fBody
+flFunc :: Parser Exp
+flFunc = 
+  Func 
+    <$> ((Just <$> qcToken flLabel) <@> pure Nothing)
+    <*> (qcToken flArgs <+> pure [])
+    <*  qctChar '.'
+    <*> (qcToken flReturnType <+> pure TAny)
+    <*> qcToken flFBody
 
-fRef :: Parser Exp
-fRef = FRef <$> (char '~' *> token identifier)
+flFRef :: Parser Exp
+flFRef = FRef <$> flLabel
 
-label :: Parser String
-label = char '~' *> identifier <* token (char ':')
+flLabel :: Parser String
+flLabel = qcChar '~' *> qcToken flId
 
-arg :: Parser Arg
-arg =
-  (Arg <$> token identifier <*> maybeEnclosed (char '(') (char ')') (token pType))
-    <|> (Arg <$> token identifier <*> pure TAny)
+flArg :: Parser Arg
+flArg =
+  (     Arg <$> qcToken flId 
+            <*> qcMaybeEnclosedBy 
+                 (qcChar '(') 
+                 (qcChar ')') 
+                 (qcToken flType)
+  ) <+> (Arg <$> qcToken flId <*> pure TAny)
 
-args :: Parser [Arg]
-args = sepBy (token (char ',')) arg
+flArgs :: Parser [Arg]
+flArgs = qcSeparatedBy (qctChar ',') flArg
 
-returnType :: Parser Type
-returnType = maybeEnclosed (char '(') (char ')') pType
+flReturnType :: Parser Type
+flReturnType = qcMaybeEnclosedBy 
+                (qcChar '(') 
+                (qcChar ')') 
+                (qcToken flType)
 
-fBody :: Parser FuncExp
-fBody =
-  (   Cond
-    <$> token expr
-    <*  token (char '|')
-    <*> e
-    <*> (fBody <|> pure FNil)
-    )
-    <|> (Single <$ token (char '|') <*> e)
-    <|> (Single <$> e)
-  where e = token (program <|> expr)
-
+flFBody :: Parser FuncExp
+flFBody =
+  ( Cond
+      <$> qcToken flExpr
+      <*  qctChar '|'
+      <*> _innerExpr
+      <*> (flFBody <@> pure FNil)
+  ) <+>
+  ( Single <$ qctChar '|' <*> _innerExpr ) <+>
+  ( Single <$> _innerExpr)
+  where _innerExpr = qcToken ( flProgram <+> flExpr )
 
 
 
@@ -310,22 +323,34 @@ fBody =
     IO
 :--------------------------------}
 
-io :: Parser Exp
-io = Io <$> (ioIn <|> ioOut)
+flIo :: Parser Exp
+flIo = Io <$> (flIoIn <+> flIoOut)
 
-ioIn :: Parser IoExp
-ioIn =
-  (IoFileIn <$> token path <* token (string "~>") <*> token pType)
-    <|> (IoStdIn <$> (token (string "~>") *> pType))
+flIoIn :: Parser IoExp
+flIoIn 
+  = ( IoFileIn <$> qcToken flPath
+               <*  qctStr "~>"
+               <*> qcToken flType
+    ) <+>
+    ( IoStdIn  <$> ( qctStr "~>" 
+                     *> qcToken flType 
+                   )
+    )
 
-ioOut :: Parser IoExp
-ioOut =
-  (IoFileOut <$> token path <* token (string "<~") <*> token pType)
-    <|> (IoStdOut <$> (token (string "<~") *> pType))
+flIoOut :: Parser IoExp
+flIoOut 
+  = ( IoFileOut <$> qcToken flPath
+               <*  qctStr "<~"
+               <*> qcToken flType
+    ) <+>
+    ( IoStdOut  <$> ( qctStr "<~" 
+                     *> qcToken flType 
+                   )
+    )
 
-path :: Parser String
-path = do
-  LString path <- str
+flPath :: Parser String
+flPath = do
+  LString path <- flStr
   return path
 
 
@@ -335,10 +360,10 @@ path = do
     Binary Ops
 :--------------------------------}
 
-operator :: Parser Operator
-operator = foldl1 (<|>) $ aux <$> ops
+flOperator :: Parser Operator
+flOperator = foldl1 (<+>) $ aux <$> ops
  where
-  aux (f, s) = f <$ string s
+  aux (f, s) = f <$ qcStr s
   ops =
     [ (OpAdd , "+")
     , (OpSub , "-")
@@ -356,45 +381,42 @@ operator = foldl1 (<|>) $ aux <$> ops
     , (OpEq  , "==")
     ]
 
-var :: Parser Exp
-var =
-  (   CSlice
-    <$> (string "&" *> natural)
-    <*  string ":"
-    <*> optional natural
-    <&> Capture
-    )
-    <|> (Capture . CSingle <$> (string "&" *> natural))
-    <|> (Var <$> identifier)
+flBinaryOp :: Parser Exp
+flBinaryOp =
+  BinOp <$> qcToken flOperator 
+        <*> qcToken flTerm
+        <*> qcToken flTerm
 
-binaryOp :: Parser Exp
-binaryOp = BinOp <$> token operator <*> token term <*> token term
-
-
-
+flVar :: Parser Exp
+flVar = _var <+> _cSlice <+> _cSingle
+  where
+    _var = Var <$> flId
+    _cSlice = CSlice 
+          <$> (qcChar '&' *> qcNatural)
+          <*  qcChar ':'
+          <*> (Just <$> qcNatural <+> pure Nothing)
+          <&> Capture
+    _cSingle = CSingle
+          <$> ( qcChar '&' *> qcNatural )
+          <&> Capture
 
 {--------------------------------:
     Helpers
 :--------------------------------}
 
-printAST :: ParseResult -> IO ()
-printAST (ParseResult (Just a) _ _) = pPrint a
+flLastError :: [PReturn a] -> Maybe ParseError
+flLastError = listToMaybe . sortBy (aux `on` peContext) . lefts
+ where
+  aux :: ParseContext -> ParseContext -> Ordering
+  aux a b =
+    let ac = ctxColumn a
+        al = ctxLine a
+        bc = ctxColumn b
+        bl = ctxLine b
+    in  case (Down al `compare` Down bl, Down ac `compare` Down bc) of
+          (EQ, c) -> c
+          (c , _) -> c
 
-parseString :: String -> ParseResult
-parseString input = parseResultOfRoot
-  input
-  (fixRootProgram $ runParser program (removeComments input))
+flLastResult :: Show a => [PReturn a] -> Maybe (ParseResult a)
+flLastResult = listToMaybe . sortOn (Down . length . show . prResult) . rights
 
-parseFile :: String -> IO (Either String ParseResult)
-parseFile path = second parseString <$> gatherFile path
-
-
-fixRootProgram :: Maybe (Exp, String) -> Maybe (Exp, String)
-fixRootProgram p@(Just (Program _ _, _)) = p
-fixRootProgram (  Just (p          , r)) = Just (Program p Nil, r)
-fixRootProgram a                         = a
-
-parseResultOfRoot :: String -> Maybe (Exp, String) -> ParseResult
-parseResultOfRoot src root
-  | Just (ast, r) <- root = ParseResult (Just ast) (Just r) src
-  | otherwise             = ParseResult Nothing Nothing src
