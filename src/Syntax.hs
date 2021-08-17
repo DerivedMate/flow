@@ -52,6 +52,7 @@ data Type
   | TBool
   | TList Type
   | TFunc Type Type
+  | TTuple Type Type
   | TAny
   deriving ( Show, Eq )
 
@@ -168,15 +169,15 @@ tuple =
 :--------------------------------}
 
 pType :: Parser Type
-pType = _pFunc <|> simple
+pType =  _pFunc <|> simple
  where
   simple =
     (TInt <$ token (string "Int"))
-      <|> (TFloat <$ token (string "Float"))
+      <|> (TFloat  <$ token (string "Float"))
       <|> (TString <$ token (string "Str"))
-      <|> (TBool <$ token (string "Bool"))
-      <|> (TList <$> _pList)
-      <|> (TAny <$ token (string "Any"))
+      <|> (TBool   <$ token (string "Bool"))
+      <|> (TList   <$> _pList)
+      <|> (TAny    <$ token (string "Any"))
   _pList =
     string "List"
       *>  enclosed (char '<') (char '>') (token pType)
@@ -342,6 +343,7 @@ operator = foldl1 (<|>) $ aux <$> ops
     [ (OpAdd , "+")
     , (OpSub , "-")
     , (OpMul , "*")
+    , (OpNeq , "/=")
     , (OpDiv , "/")
     , (OpExp , "^")
     , (OpAnd , "&&")
@@ -352,7 +354,6 @@ operator = foldl1 (<|>) $ aux <$> ops
     , (OpLtEq, "<=")
     , (OpLt  , "<")
     , (OpEq  , "==")
-    , (OpNeq , "/=")
     ]
 
 var :: Parser Exp

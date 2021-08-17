@@ -38,7 +38,7 @@ stepFunc step node@(Func l args rt f_body) s =
       else (RTNil, assignVars (stLast s) args <> fns, True)
     f' = vars
     s' = State { stLast = last, stStack = f' : stStack s }
-  in
+  in 
     if doRun then stepFExp f_body s' else pure [Datum Nil s']
  where
   stepFExp :: FuncExp -> State -> IO [Datum]

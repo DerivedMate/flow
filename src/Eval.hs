@@ -38,11 +38,6 @@ runFlow (ParseResult (Just ast) _ src) =
   aux [] = pure ()
   aux ds = sequence (iter <$> ds) >>= aux .concat
   iter (Datum e s) = step e s
-  traceVars :: [String] -> Datum -> Datum
-  traceVars ns d@(Datum e s) = traceShow vs d
-    where vs = [ (n, getVar n s) | n <- ns ]
-  traceLast :: Datum -> Datum
-  traceLast d@(Datum e s) = traceShow (stLast s) d
   help ds = trace
     ("\n" <> intercalate " <<<<<<<< END >>>>>>>> \n\n" (fmap show ds) <> "\n\n")
     ds

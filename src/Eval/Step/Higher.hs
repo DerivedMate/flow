@@ -6,6 +6,7 @@ import           Data.List
 import           Debug.Pretty.Simple
 import           Eval.RT
 import           Eval.Step.Common
+import           Helper.Debug
 import           Syntax
 
 
@@ -48,7 +49,7 @@ stepHigher step (Cell MKeep e) s =
 
 
 stepHigher step (Cell MKeepEnum e) s =
-  mapM runBranch ((deTuple . stLast) s) <&> rewrap . foldl1 (<>)
+  mapM runBranch ((deTuple . stLast) s) <&> rewrap . concat
  where
   runBranch :: RTVal -> IO [RTVal]
   runBranch v = exhaustBranch v [] [Datum e (s { stLast = v })]
@@ -121,9 +122,12 @@ stepHigher step (Anchor AUnfold e0 e) s0 = manage [] [Datum e s0] <&> wrap
   -- Separate results from circulating data
   aggregate :: Datum -> ([RTVal], [Datum])
   aggregate d
-    | isDone d, (y, k, True) <- l d  = ([y], [Datum e0 s0 { stLast = k }])
-    | isDone d, (_, _, False) <- l d = ([], [])
-    | otherwise                      = ([], [d])
+    | isDone d, (y, k, True) <- l d
+    = ([y], [Datum e0 s0 { stLast = RTTuple (splatLast k) }])
+    | isDone d, (_, _, False) <- l d
+    = ([], [])
+    | otherwise
+    = ([], [d])
    where
     isDone = (== Nil) . datumExp
     l      = matchResult . stLast . datumState
