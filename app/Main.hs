@@ -12,10 +12,11 @@ import           System.Directory.Internal.Prelude
 import           System.Environment
 import           System.IO
 import           Text.Printf                    ( printf )
+import Lexer
 
 interactiveShell :: IO ()
 interactiveShell =
-  putStrLn
+  putStrLn 
       ("Welcome to Flow!\n" <> intercalate
         "\n"
         ((\p -> "\t" <> fst p <> " - " <> snd p) <$> options)
@@ -32,34 +33,40 @@ interactiveShell =
     | Just _ <- stripPrefix ":q" input
     = return ()
     | Just rest <- stripPrefix ":ast" input
-    = printAST (parseString rest) >> loop
+    = flPrintAST (flParseString rest) >> loop
     | Just path <- stripPrefix ":file" input
     = runFile 0 path >> loop
     | otherwise
-    = runFlow (parseString input) >> loop
+    = runFlow (flParseString input) >> loop
 
 runFile :: Int -> FilePath -> IO ()
 runFile optLvl path = do
- src' <- optSrc
- case src' of
-   Left msg -> printf msg
-   Right ast -> runFlow ast >>= handleError
+  r0 <- flParseFile path
+  case r0 of
+    Left msg -> printf msg
+    Right pr -> runFlow $ second (fmap optSrc) pr 
+  where
+    optSrc 
+      | optLvl == 1
+      = optimize rStaticExp
+      | optLvl == 2
+      = optimize rNullableExp . optimize rStaticExp
+      | otherwise 
+      = id
+{-
+do
+   undefined
  where
-  srcParse = parseFile path
+  srcParse = flParseFile path
   optSrc
     | optLvl == 1
-    = second (\r -> r { prExp = optimize rStaticExp <$> prExp r }) <$> srcParse 
+    = second (fmap (bimap id (optimize rStaticExp))) <$> srcParse 
     | optLvl == 2
-    = second (\r ->
-        r { prExp = optimize rNullableExp . optimize rStaticExp <$> prExp r }
-      )
+    = second (fmap (bimap id (optimize rNullableExp . optimize rStaticExp)))
       <$> srcParse
     | otherwise
     = srcParse
-
-handleError :: Either String () -> IO ()
-handleError (Left msg) = printf msg
-handleError (Right a)         = pure a
+-}
 
 main :: IO ()
 main = do

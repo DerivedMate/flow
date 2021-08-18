@@ -72,34 +72,34 @@ A vscode extension for syntax highlighting can be found under [flow-highlight](h
 
 The main idea behind flow is the flow of data between _"cells"_. Each cell is either:
 
-1. an expression: `{ 2 }`, `{ + 2 1 }`, `{(1; 3)}`;
-1. a function: `{ ~add: a Int, b Int. + a b }`;
-1. or an IO operation: `{ <~ List<Int> }`.
+1. an expression: `{ 2 }`, `{ + 2 1 }`, `{(1, 3)}`;
+1. a function: `{ ~add a Int, b Int. + a b }`;
+1. or an IO operation: `{ <~ [Int] }`.
 
 Flow from one cell to another is denoted by `=>`:
 
 ```
-{(1; 3)} => { ~add: a Int, b Int. + a b }
+{(1, 3)} => { ~add a Int, b Int. + a b }
          => { <~ Int }
 ```
 
-In the above example, the first cell returns a [pair](#data-types) of `(1; 3)`. That is further passed into a [function](#functions) of two [ints](#data-types) `a = 1, b = 3`. The result is passed into an output operation, which displays `4` onto the screen (_stdout_).
+In the above example, the first cell returns a [pair](#data-types) of `(1, 3)`. That is further passed into a [function](#functions) of two [ints](#data-types) `a = 1, b = 3`. The result is passed into an output operation, which displays `4` onto the screen (_stdout_).
 
 ## Data types
 
 Current data types include:
 
-| Name      | Examples                |
-| --------- | ----------------------- |
-| Int       | `1`, `+3`, `-42`        |
-| Float     | `3.1415`, `2.`          |
-| Str       | `` `Hello` ``           |
-| Bool      | `True`, `False`         |
-| tuple\*   | `(1; 3)`                |
-| List\<T\> | `[1, 2, 3]`, `[4, 5.0]` |
-| Any       | anything                |
+| Name    | Examples                |
+| ------- | ----------------------- |
+| Int     | `1`, `+3`, `-42`        |
+| Float   | `3.1415`, `2.`          |
+| Str     | `` `Hello` ``           |
+| Bool    | `True`, `False`         |
+| tuple\* | `(1, 3)`                |
+| list    | `[1, 2, 3]`, `[4, 5.0]` |
+| Any     | anything                |
 
-> \*tuples, for the time being, are treated as data carriers instead of proper data types. Recall how we destructured `(1; 3)` in the previous example
+> \*tuples, for the time being, are treated as data carriers instead of proper data types. Recall how we destructured `(1, 3)` in the previous example
 
 In general, data is weakly typed, unless the type is explicitly stated:
 
@@ -107,10 +107,10 @@ In general, data is weakly typed, unless the type is explicitly stated:
 { a,     b.         + a b } => let ~combine
 { a Int, b Int. Int + a b } => let ~add %% first casts a, b into ints, and + a b - to int %%
 
-{(1; 3)}              => ~combine => { <~ Int } %% => 4             %%
-{(`Hello`; ` World`)} => ~combine => { <~ Str } %% => `Hello World` %%
-{(`7`; `11`)}         => ~combine => { <~ Int } %% => 711           %%
-{(`7`; `11`)}         => ~add     => { <~ Int } %% => 18            %%
+{(1, 3)}              => ~combine => { <~ Int } %% => 4             %%
+{(`Hello`, ` World`)} => ~combine => { <~ Str } %% => `Hello World` %%
+{(`7`, `11`)}         => ~combine => { <~ Int } %% => 711           %%
+{(`7`, `11`)}         => ~add     => { <~ Int } %% => 18            %%
 ```
 
 ## Casting
@@ -118,16 +118,16 @@ In general, data is weakly typed, unless the type is explicitly stated:
 Flow allows for two kinds of casting: of arguments, and of variables. The former take form of specifying the arguments' types:
 
 ```
-{ ~add: a Int, b Int. %% ... %% }
+{ ~add a Int, b Int. %% ... %% }
 ```
 
 The latter regard variables, and can be used like normal expressions:
 
 ```
 { + 2 5 :: Float } %% == { + 2 (5 :: Float) } %%
-{ ~add: a, b. + a b }
+{ ~add a, b. + a b }
    => { &0 :: (Any -> Any -> Int) }
-   => { f. {( [1, 2, 3]; [4, 5] )} => ~f  }
+   => { f. {( [1, 2, 3], [4, 5] )} => ~f  }
    => { <~ Str } %% => 5 %%
 ```
 
@@ -183,7 +183,7 @@ Labels are used for self-referencing a function in its scope. Binding is created
 
 ```
 { a, b. + a b } => let ~f
-{ ~f:. %% ~f refers to the above %% }
+{ ~f. %% ~f refers to the above %% }
 ```
 
 ## Functions
@@ -191,15 +191,15 @@ Labels are used for self-referencing a function in its scope. Binding is created
 Functions are cells that take arguments, and can be **locally** aliased with labels:
 
 ```
-{ ~fact: n, m.
-   > n 0 | {( - n 1; * n m )} => ~fact
+{ ~fact n, m.
+   > n 0 | {( - n 1, * n m )} => ~fact
 }
 ```
 
 Type annotations for arguments, and return values are also optional:
 
 ```
-{ ~add: a Int, b Int. Int 
+{ ~add a Int, b Int. Int 
    + a b 
 }
 ```
@@ -277,7 +277,7 @@ The behavior of a cell can be changed with modifiers:
 ```
 mod ~f
 mod { ~f }
-mod { ~f: %% ... %% }
+mod { ~f %% ... %% }
 ```
 
 Current modifiers include:
@@ -297,7 +297,7 @@ Current modifiers include:
 
 ```
 { a Int. + 1 a } => let ~inc
-{[1, 2, 3]} => map ~inc => { <~ List<Int> } %% => [2, 3, 4] %%
+{[1, 2, 3]} => map ~inc => { <~ [Int] } %% => [2, 3, 4] %%
 ```
 
 #### keep
@@ -307,26 +307,26 @@ Current modifiers include:
 { 3 } => keep ~isEven => { `I'm never printed!` } => { <~ Str }
 { 2 } => keep ~isEven => { <~ Int } %% => 2 %%
 
-{[1, 2, 3, 4]} => keep[] ~isEven => { <~ List<Int> } %% => [2, 4] %%
+{[1, 2, 3, 4]} => keep[] ~isEven => { <~ [Int] } %% => [2, 4] %%
 ```
 
 #### gen
 
 ```
 { n Int.
-    > n 0 | (n; - n 1)
+    > n 0 | (n, - n 1)
 } => let ~iter
 { 3 } => map { n. {n} => gen ~iter }
-      => { <~ List<Int> }        %% => [3, 2, 1] %%
+      => { <~ [Int] }        %% => [3, 2, 1] %%
 { 3 } => gen ~iter => { <~ Int } %% => 3 2 1     %%
 ```
 
 #### fold
 
 ```
-   {( 1; [1, 2, 3, 4] )} %% (initial; elements) %%
+   {( 1, [1, 2, 3, 4] )} %% (initial, elements) %%
 => fold
-   { ~prod: a Int, n Int. * a n }
+   { ~prod a Int, n Int. * a n }
    %%
      | a | n | return   |
      | 1 | 1 | 1*1 = 1  |
@@ -342,7 +342,7 @@ Current modifiers include:
 Fold can also accept multiple arguments:
 
 ```
-   {( ``; [(`Hi`; `Alice`), (`Hello`; `Bob`)] )}
+   {( ``, [(`Hi`, `Alice`), (`Hello`, `Bob`)] )}
 => fold
    { acc, greeting, name.
         + acc ( + (+ (+ greeting `, `) name) `! ` )
@@ -362,17 +362,17 @@ Fold can also accept multiple arguments:
     from 1 to m.
 %%
 
-   {(1; ~> Int; 1)}
+   {(1, ~> Int, 1)}
 => unfold
-   { ~fact: n, m, acc.
+   { ~fact n, m, acc.
         <= n m | ( * n acc
-                 ; ( + n 1
-                   ; m
-                   ; * n acc
+                 , ( + n 1
+                   , m
+                   , * n acc
                    )
                  )
    }
-=> { <~ List<Int> }
+=> { <~ [Int] }
 ```
 
 ### let
@@ -382,17 +382,17 @@ Fold can also accept multiple arguments:
    == 0 % n m | w
               | ``
 } => let ~mkFB
-{[ (3; `foo`)
- , (5; `bar`)
- , (7; `yo`) 
+{[ (3, `foo`)
+ , (5, `bar`)
+ , (7, `yo`) 
  ]} => map ~mkFB 
     => let ~fs
 { n Int. 
    > n 0 
-   | {( ``; fs )} => fold { a, f. { n } => { + a f } } 
+   | {( ``, fs )} => fold { a, f. { n } => { + a f } } 
                   => let { r }
-     {. r | (r; - n 1) 
-          | (n; - n 1) 
+     {. r | (r, - n 1) 
+          | (n, - n 1) 
      }
 } => let ~foobar
 { ~> Int } => gen ~foobar => { <~ Str }
@@ -418,7 +418,7 @@ All IO operations require explicit casting.
 Currently IO operations are executed sequentially, in the order of occurrence:
 
 ```
-{(~> Int; ~> Int)} => { a, b. - a b } => { <~ Int }
+{(~> Int, ~> Int)} => { a, b. - a b } => { <~ Int }
 %%
 input:
 3
@@ -433,38 +433,38 @@ output:
 Capturing can be employed to use the results of the previous flow, without explicitly defining variables. For example, instead of defining the `~add` function, we can write:
 
 ```
-{(1; 3)} => { + &0 &1 } => { <~ Int } %% => 4 %%
+{(1, 3)} => { + &0 &1 } => { <~ Int } %% => 4 %%
 ```
 
 Expression `&i` for a natural number `i` refers to the (i+1)-th argument.
 Slicing is also available through `&i:j`. Zero indexed, both inclusive. `j` can be omitted to capture the remainder.
 
 ```
-{(1; 3)} => {[&0:, &0:]}     %% [(1; 3), (1; 3)] %%
+{(1, 3)} => {[&0:, &0:]}     %% [(1, 3), (1, 3)] %%
          => map { + &0 &1 }  %% [4, 4]           %%
-         => { <~ List<Int> }
+         => { <~ [Int] }
 ```
 
 However, where this feature truly comes in handy is in nested generators. Consider:
 
 ```
 { n Int.
-    > n 0 | (n; - n 1)
+    > n 0 | (n, - n 1)
 } => let ~iter
 
 {[3, 2, 1]}
     => map { n. {n} => gen {
              m. {m} => gen ~iter
-                    => { r. (r; - r 1) }
+                    => { r. (r, - r 1) }
             }}
-    => { <~ List<Int> }
+    => { <~ [Int] }
 
 {[3, 2, 1]}
     => map {{&0} => gen {
             {&0} => gen ~iter
-                 => {(&0; - &0 1)}
+                 => {(&0, - &0 1)}
             }}
-    => { <~ List<Int> }
+    => { <~ [Int] }
 ```
 
 The latter gets rid of dummy variable declarations.

@@ -14,7 +14,7 @@
     ]
   ]
 } => let { tree }
-{ ~invert: l.
+{ ~invert l.
     { l } => { || empty single } 
     | l
     | { l } => map ~invert 
@@ -40,4 +40,4 @@
     < n 0 | -1
           | 0
 } => let ~sgn
-{[121, 0, -12, 5]} => map ~sgn => { <~ List }
+{[121, 0, -12, 5]} => map ~sgn => { <~ [Any] }

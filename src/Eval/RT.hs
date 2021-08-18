@@ -149,25 +149,25 @@ rtParse :: Type -> String -> RTVal
 rtParse t s
   | null s, TList _ <- t = RTList []
   | null s = RTNil
-  | Just (e, "") <- parseResult = rtOfExp t e
-  | Just (_, rest) <- parseResult = error
-    ("Incomplete rtParse: " <> s <> "(" <> rest <> "); as: " <> show t)
+  | Just pr <- r = rtOfExp t (prResult pr)
+  | Just pe <- e = error $ show pe
   | otherwise = error ("Failed to rtParse: " <> s <> "; as: " <> show t)
  where
   parserOfType :: Type -> Parser Exp
   parserOfType t
-    | TInt <- t = int
-    | TFloat <- t = float
+    | TInt <- t = flInt
+    | TFloat <- t = flFloat
     | TString <- t = LString
-    <$> many (pre (\c -> isLatin1 c && (c `notElem` definiteSeps)))
-    | TBool <- t = bool
+    <$> many (qcProp (\c -> isLatin1 c && (c `notElem` definiteSeps)))
+    | TBool <- t = flBool
     | (TList tt) <- t = LList
-    <$> sepBy (token (pre (`elem` definiteSeps))) (token (parserOfType tt))
-    | TAny <- t = expr
-    | (TFunc _ _) <- t = func
+    <$> qcSeparatedBy (qcToken (qcProp (`elem` definiteSeps))) (qcToken (parserOfType tt))
+    | TAny <- t = flExpr
+    | (TFunc _ _) <- t = flFunc
     where definiteSeps = ",;.\t"
 
-  parseResult = runParser (parserOfType t) s
+  (e, r) = flDistillReturn $ runParser (parserOfType t) (qcCtxOfString s)
+
 
 rtOfExp :: Type -> Exp -> RTVal
 rtOfExp _ (  LTuple  []       ) = RTNil

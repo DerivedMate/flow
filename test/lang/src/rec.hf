@@ -1,6 +1,6 @@
-{ ~fact: a Int, b Int.
-    > a 0 | {( - a 1; * a b )} => ~fact
+{ ~fact a Int, b Int.
+    > a 0 | {( - a 1, * a b )} => ~fact
           | b
 } => let ~fact
 
-{( ~> Int; 1 )} => ~fact => { <~ Int }
+{( ~> Int, 1 )} => ~fact => { <~ Int }
