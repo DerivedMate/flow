@@ -8,6 +8,7 @@ import           Data.Function
 import           Data.Functor
 import           Data.List
 import           Text.Pretty.Simple
+import           Text.Read
 
 data ParseResult a = ParseResult
   { prResult     :: a
@@ -62,39 +63,6 @@ instance MonadFail Parser where
                        }
     )
 
-class (Applicative f) => QCAlternative f where
-  qcEmpty :: Eq a => f a
-
-  infixl 3 <+>
-  (<+>) :: Eq a => f a -> f a -> f a
-
-  infixl 3 <@>
-  (<@>) :: Eq a => f a -> f a -> f a
-
-  qcSome :: Eq a => f a -> f [a]
-  qcSome v = some_v
-    where
-      many_v = some_v <+> pure []
-      some_v = liftA2 (:) v many_v
-
-  -- | Zero or more.
-  qcMany :: Eq a => f a -> f [a]
-  qcMany v = many_v
-    where
-      many_v = some_v <+> pure []
-      some_v = liftA2 (:) v many_v
-
-instance QCAlternative Parser where
-  qcEmpty = fail ""
-  p <+> q = Parser $ \c ->
-    let rp = runParser p c
-        rq = runParser q c
-    in  case (rp, rq) of
-          (Right _, _) -> rp
-          _            -> rq
-
-  (<@>) = (<+>)
-
 instance Alternative Parser where
   empty = fail ""
   p <|> q = Parser $ \c ->
@@ -147,27 +115,32 @@ qcProp f = Parser aux
  where
   aux c
     | k : ks <- ctxString c, f k = runParser (qcChar k) c
-    | otherwise = Left $ ParseError { peContext  = qcCtxOfString ""
-                                    , peExpected = ""
-                                    , peGot      = "[unpamtched proposition]"
-                                    }
+    | otherwise = Left $ ParseError
+      { peContext  = qcCtxOfString ""
+      , peExpected = "[proposition]"
+      , peGot      = "[unmatched: " <> take 1 (ctxString c) <> "]"
+      }
 
 
 qcNat :: Parser Char
 qcNat = qcProp isDigit
 
 qcNatural :: Parser Int
-qcNatural = read <$> qcSome qcNat
+qcNatural = do
+  r <- (readMaybe <$> many qcNat) :: Parser (Maybe Int)
+  case r of
+    Just n -> pure n
+    Nothing -> fail "cannot read int"
 
 qcNum :: Parser Int
 qcNum = qcSigned qcNatural
 
 qcSigned :: (Eq a, Num a) => Parser a -> Parser a
 qcSigned p =
-  (*) <$> ((qcChar '-' $> (-1)) <+> (qcChar '+' $> 1) <+> pure 1) <*> p
+  (*) <$> ((qcChar '-' $> (-1)) <|> (qcChar '+' $> 1) <|> pure 1) <*> p
 
 qcSS :: Parser String
-qcSS = qcMany (qcProp (`elem` " \t\r\n"))
+qcSS = many (qcProp (`elem` " \t\r\n"))
 
 qcToken :: Parser a -> Parser a
 qcToken p = qcSS *> p <* qcSS
@@ -177,8 +150,8 @@ qcEnclosedBy l r p = l *> qcToken p <* r
 
 qcMaybeEnclosedBy
   :: (Eq l, Eq r, Eq p) => Parser l -> Parser r -> Parser p -> Parser p
-qcMaybeEnclosedBy l r p = qcEnclosedBy l r p <+> p
+qcMaybeEnclosedBy l r p = qcEnclosedBy l r p <|> p
 
 qcSeparatedBy :: (Eq s, Eq e) => Parser s -> Parser e -> Parser [e]
-qcSeparatedBy s e = ((:) <$> (e <* s) <*> qcSeparatedBy s e) <+> (: []) <$> e
+qcSeparatedBy s e = ((:) <$> (e <* s) <*> qcSeparatedBy s e) <|> (: []) <$> e
 

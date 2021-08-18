@@ -14,14 +14,17 @@ syntaxTests
              -}
              ]
 
-prun :: String -> ParseResult Exp 
-prun src 
-  | Right r <- flParseString src = r
-  | otherwise = error src
+testableExp :: PReturn Exp -> Either ParseError Exp
+testableExp (Left e)  = Left e
+testableExp (Right r) = Right . prResult $ r
+
+prun :: String -> Either ParseError Exp
+prun = testableExp . flParseString
   
-properTree :: Exp -> ParseResult Exp  
-properTree t = flFixRootProgram $ 
-  ParseResult { prResult = t
+properTree :: Exp -> Either ParseError Exp  
+properTree t = testableExp . flFixRootProgram .
+  Right $ ParseResult 
+              { prResult     = t
               , prNewContext = qcCtxOfString ""
               }
 
@@ -99,7 +102,7 @@ testIo
                   (properTree $ 
                     Flow (
                       Cell MNone 
-                        (Io ( IoStdIn (TInt) ))
+                        (Io ( IoStdIn TInt ))
                     ) Nil
                   )
                   (prun "{ ~> Int }")
@@ -109,10 +112,10 @@ testIo
                   (properTree $ 
                     Flow (
                       Cell MNone 
-                        (Io ( IoStdIn ( TList (TString) ) ))
+                        (Io ( IoStdIn ( TList TString ) ))
                     ) Nil
                   )
-                  (prun "{ ~> List<Str> }")
+                  (prun "{ ~> [Str] }")
                ),
 
 
@@ -136,10 +139,10 @@ testIo
                   (properTree $ 
                     Flow (
                       Cell MNone 
-                        (Io ( IoStdOut ( TList (TString) ) ))
+                        (Io ( IoStdOut ( TList TString ) ))
                     ) Nil
                   )
-                  (prun "{ <~ List<Str> }")
+                  (prun "{ <~ [Str] }")
                ),
 
 
@@ -172,7 +175,7 @@ testIo
                             ))
                     ) Nil
                   )
-                  (prun "{ `input.txt` ~> List<Str> }")
+                  (prun "{ `input.txt` ~> [Str] }")
                ),
                TestCase (
                 assertEqual "IoFileIn: Long Path"
@@ -185,7 +188,7 @@ testIo
                             ))
                     ) Nil
                   )
-                  (prun "{ `~/data/inputs/scores.min.csv` ~> List<Str> }")
+                  (prun "{ `~/data/inputs/scores.min.csv` ~> [Str] }")
                ),
 
 
@@ -218,7 +221,7 @@ testIo
                             ))
                     ) Nil
                   )
-                  (prun "{ `out.txt` <~ List<Str> }")
+                  (prun "{ `out.txt` <~ [Str] }")
                )
              ]
 
@@ -244,7 +247,15 @@ testPrimitives
                ),
                TestCase (
                 assertEqual "Int only digits"
-                  (ParseResult Nothing Nothing "")
+                  (Left $ ParseError {
+                    peContext = ParseContext {
+                      ctxColumn = 7,
+                      ctxLine = 1,
+                      ctxString = "aa1 } "
+                    },
+                    peExpected = "}",
+                    peGot = "a"
+                  })
                   (prun " { 012aa1 } ")
                ),
 
@@ -266,7 +277,15 @@ testPrimitives
                ),
                TestCase (
                  assertEqual "Float no middle signs"
-                 (ParseResult Nothing Nothing "")
+                 (Left $ ParseError {
+                    peContext = ParseContext {
+                      ctxColumn = 6,
+                      ctxLine = 1,
+                      ctxString = "+.+12 } "
+                    },
+                    peExpected = "}",
+                    peGot = "+"
+                  })
                  (prun " { 12+.+12 } ")
                ),
 
@@ -347,7 +366,7 @@ testPrimitives
                :--------------------------------}
                TestCase (
                  assertEqual "Tuple Empty"
-                 (properTree ( Flow (Cell MNone ( LTuple [] ) ) Nil))
+                 (properTree ( Flow (Cell MNone Nil ) Nil))
                  (prun "{ () }")
                ),
                TestCase (
@@ -361,7 +380,7 @@ testPrimitives
                TestCase (
                  assertEqual "Tuple Regular"
                  (properTree ( Flow (Cell MNone ( LTuple [LInt 1, LInt 2, LInt 3] )) Nil ))
-                 (prun "{( 1; 2; 3 )}")
+                 (prun "{( 1, 2, 3 )}")
                )
              ]
 
@@ -372,40 +391,53 @@ testTypes
                :--------------------------------}
                TestCase (
                 assertEqual "Primitive"
-                (Just (TInt, ""))
-                (runParser pType "Int")
+                (Right $ ParseResult {
+                  prResult = TInt,
+                  prNewContext = ParseContext 2 1 ""
+                })
+                (runParser flType (qcCtxOfString "Int"))
                ),
                TestCase (
                 assertEqual "Compound"
-                (Just (TList TInt, ""))
-                (runParser pType "List<Int>")
+                (Right $ ParseResult {
+                  prResult = TList TInt,
+                  prNewContext = ParseContext 2 1 ""
+                })
+                (runParser flType (qcCtxOfString "[Int]"))
                ),
-               TestCase (
-                assertEqual "No Compound of primitive"
-                (Just (TString,"<Int>"))
-                (runParser pType "Str<Int>")
-               ),
+               -- TestCase (
+               --  assertEqual "No Compound of primitive"
+               --  (Just (TString,"<Int>"))
+               --  (runParser pType "Str<Int>")
+               -- ),
                TestCase (
                 assertEqual "Function Primitive"
-                (Just (TFunc TString TInt, ""))
-                (runParser pType "Str -> Int")
+                (Right $ ParseResult {
+                  prResult = TFunc TString TInt,
+                  prNewContext = ParseContext 2 1 ""
+                })
+                (runParser flType (qcCtxOfString "Str -> Int"))
                ),
                TestCase (
-                assertEqual "Function Compound"
-                (Just (TFunc TString (TList TString), ""))
-                (runParser pType "Str -> List<Str>")
+                assertEqual "Function List"
+                (Right $ ParseResult {
+                  prResult = TFunc TString (TList TString),
+                  prNewContext = ParseContext 2 1 ""
+                })
+                (runParser flType (qcCtxOfString "Str -> [Str]"))
                ),
                TestCase (
                 assertEqual "Function Long"
-                (Just ( 
-                  TFunc 
+                (Right $ ParseResult {
+                  prResult = TFunc 
                     TInt (
                       TFunc 
                         TString 
                         (TList TString)
-                      )
-                  , ""))
-                (runParser pType "Int->Str -> List<Str>")
+                      ),
+                  prNewContext = ParseContext 2 1 ""
+                })
+                (runParser flType (qcCtxOfString "Int->Str -> [Str]"))
                )
              ]
 
@@ -442,7 +474,7 @@ testFunc
             )
           ) Nil
         ))
-        (prun "{ ~const_1:. 1 }")
+        (prun "{ ~const_1. 1 }")
       ),
       TestCase (
         assertEqual "No args, with bare return"
@@ -457,7 +489,7 @@ testFunc
             )
           ) Nil
         ))
-        (prun "{ ~const_1:.Int 1 }")
+        (prun "{ ~const_1.Int 1 }")
       ),
       TestCase (
         assertEqual "No args, with enclosed return"
@@ -472,7 +504,7 @@ testFunc
             )
           ) Nil
         ))
-        (prun "{ ~const_1:.(Int) 1 }")
+        (prun "{ ~const_1.(Int) 1 }")
       ),
 
 
@@ -517,7 +549,7 @@ testFunc
             )
           ) Nil
          ))
-         (prun "{~inc: a (Int). + a 1}")
+         (prun "{~inc a (Int). + a 1}")
       ),
 
 
@@ -545,7 +577,7 @@ testFunc
             )
           ) Nil
         ))
-        (prun "{ ~sum_int: a (Int), b(Int). + a b }")
+        (prun "{ ~sum_int a (Int), b(Int). + a b }")
       ),
       TestCase (
         assertEqual "Sum with return"
@@ -566,7 +598,7 @@ testFunc
             )
           ) Nil
         ))
-        (prun "{ ~sum_int: a (Int), b (Int). Float + a b }")
+        (prun "{ ~sum_int a (Int), b (Int). Float + a b }")
       ),
 
       
@@ -608,7 +640,7 @@ testFunc
             )
           ) Nil
         ))
-        (prun "{ ~sum_int: a (Int), b (Int). Int -> Int { c(Int). Int (+ (+ a b) c) } }")
+        (prun "{ ~sum_int a (Int), b (Int). Int -> Int { c(Int). Int (+ (+ a b) c) } }")
       ),
 
 
@@ -640,9 +672,9 @@ testFunc
             )
           ) Nil
         ))
-        (prun "{~max2: a(Int), b(Int). \
-               \  > a b | a            \
-               \        | b            \
+        (prun "{~max2 a(Int), b(Int). \
+               \  > a b | a           \
+               \        | b           \
                \}")
       ),
       TestCase (
@@ -685,7 +717,7 @@ testFunc
             ) 
           ) Nil
         ))
-        (prun "{~max3: a(Int), b(Int), c(Int). \
+        (prun "{~max3 a(Int), b(Int), c(Int). \
                \  && > a b > b c | a \
                \  && > b a > a c | b \
                \                 | c \
@@ -697,11 +729,15 @@ testEaxmples
   = TestList [ TestCase (
                 do 
                 let 
-                  exp = Just (Program (Flow (Cell MNone (LTuple [Io (IoStdIn TInt),LInt 1])) (Flow (Cell MNone (Func (Just "fact") [Arg "a" TInt,Arg "b" TInt] TAny (Cond (BinOp OpGt (Var "a") (LInt 1)) (Flow (Cell MNone (LTuple [BinOp OpSub (Var "a") (LInt 1),BinOp OpMul (Var "a") (Var "b")])) (Flow (FRef "fact") Nil)) (Single (Flow (Cell MNone (Var "b")) Nil))))) (Flow (Cell MNone (Io (IoStdOut TInt))) Nil))) Nil)
-                  aux (Right r) = assertEqual "Factorial" exp . prExp $ r
-                  aux (Left msg) = assertFailure msg
+                  exp = Program (Flow (Cell MNone (LTuple [Io (IoStdIn TInt),LInt 1])) (Flow (Cell MNone (Func (Just "fact") [Arg "a" TInt,Arg "b" TInt] TAny (Cond (BinOp OpGt (Var "a") (LInt 1)) (Flow (Cell MNone (LTuple [BinOp OpSub (Var "a") (LInt 1),BinOp OpMul (Var "a") (Var "b")])) (Flow (FRef "fact") Nil)) (Single (Flow (Cell MNone (Var "b")) Nil))))) (Flow (Cell MNone (Io (IoStdOut TInt))) Nil))) Nil
+                  aux :: PReturn Exp -> Assertion
+                  aux (Right r) = assertEqual "Factorial" exp  (prResult r)
+                  aux (Left msg) = assertFailure $ show msg
+
+                  ppErrorAux (Left msg) = assertFailure msg
+                  ppErrorAux (Right r)  = aux r
                 
-                  in parseFile "./test/example/fact.hf" >>= aux
+                  in flParseFile "./test/example/fact.hf" >>= ppErrorAux
                ) 
 
              ]

@@ -158,7 +158,7 @@ rtParse t s
     | TInt <- t = flInt
     | TFloat <- t = flFloat
     | TString <- t = LString
-    <$> qcMany (qcProp (\c -> isLatin1 c && (c `notElem` definiteSeps)))
+    <$> many (qcProp (\c -> isLatin1 c && (c `notElem` definiteSeps)))
     | TBool <- t = flBool
     | (TList tt) <- t = LList
     <$> qcSeparatedBy (qcToken (qcProp (`elem` definiteSeps))) (qcToken (parserOfType tt))

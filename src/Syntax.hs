@@ -117,7 +117,7 @@ data Exp
 :--------------------------------}
 
 flLiteral :: Parser Exp
-flLiteral = flTuple <+> flList <+> flStr <+> flFloat <+> flBool <+> flInt
+flLiteral = flTuple <|> flList <|> flStr <|> flFloat <|> flBool <|> flInt
 
 flInt :: Parser Exp
 flInt = LInt <$> qcNum
@@ -128,28 +128,29 @@ flFloat =
     <$> (do
           a <- qcNum
           _ <- qcChar '.'
-          b <- qcNatural <+> pure 0
+          b <- qcNatural <|> pure 0
           return (read $ show a <> "." <> show b)
         )
 
 flBool :: Parser Exp
-flBool = LBool <$> ((qcStr "True" $> True) <+> (qcStr "False" $> False))
+flBool = LBool <$> ((qcStr "True" $> True) <|> (qcStr "False" $> False))
 
 flStr :: Parser Exp
 flStr =
-  LString <$> qcEnclosedBy (qcChar '`') (qcChar '`') (qcMany $ qcProp (/= '`'))
+  LString <$> qcEnclosedBy (qcChar '`') (qcChar '`') (many $ qcProp (/= '`'))
 
 flTuple :: Parser Exp
-flTuple = (LTuple <$> qcEnclosedBy (qcChar '(')
-                                  (qcChar ')')
-                                  (qcSeparatedBy (qctChar ',') flTerm))
-       <+> (qctChar '(' *> qctChar ')' $> Nil)
+flTuple =  (do _ <- qctChar '('; _ <- qctChar ')'; pure Nil)
+       <|> (LTuple <$> qcEnclosedBy (qcChar '(')
+                                    (qcChar ')')
+                                    (qcSeparatedBy (qctChar ',') flTerm)) 
 
 flList :: Parser Exp
-flList = (LList <$> qcEnclosedBy (qcChar '[')
-                                (qcChar ']')
-                                (qcSeparatedBy (qctChar ',') flTerm))
-      <+> (LList <$> (qctChar '[' *> qctChar ']' $> []) )
+flList =  (LList <$> (qctChar '[' *> qctChar ']' $> []) )
+      <|> (LList <$> qcEnclosedBy (qcChar '[')
+                                  (qcChar ']')
+                                  (qcSeparatedBy (qctChar ',') flTerm))
+       
 
 
 
@@ -158,17 +159,17 @@ flList = (LList <$> qcEnclosedBy (qcChar '[')
 :--------------------------------}
 
 flType :: Parser Type
-flType = _func <+> _simple <+> _list
+flType = _func <|> _simple <|> _list
  where
   _simple =
     (TInt <$ qctStr "Int")
-      <@> (TFloat <$ qctStr "Float")
-      <@> (TString <$ qctStr "Str")
-      <@> (TString <$ qctStr "Bool")
-      <@> (TAny <$ qctStr "Any")
+      <|> (TFloat <$ qctStr "Float")
+      <|> (TString <$ qctStr "Str")
+      <|> (TString <$ qctStr "Bool")
+      <|> (TAny <$ qctStr "Any")
   _list     = TList <$> qcEnclosedBy (qctChar '[') (qctChar ']') flType
-  _func     = (TFunc <$> __notFunc <* qctStr "->" <*> _func) <@> _simple
-  __notFunc = qcToken (_list <@> _simple)
+  _func     = (TFunc <$> __notFunc <* qctStr "->" <*> _func) <|> __notFunc
+  __notFunc = qcToken (_list <|> _simple)
 
 
 
@@ -177,37 +178,37 @@ flType = _func <+> _simple <+> _list
 :--------------------------------}
 
 flProgram :: Parser Exp
-flProgram = (Program <$> flFlow <*> flProgram) <+> flFlow
+flProgram = (Program <$> flFlow <*> flProgram) <|> flFlow
 
 flExpr :: Parser Exp
-flExpr = flTerm <@> flFlow
+flExpr = flTerm <|> flFlow
 
 flFlow :: Parser Exp
 flFlow =
   (Flow <$> qcToken flCell <* qctStr "=>" <*> flFlow)
-    <+> (Flow <$> flCell <*> pure Nil)
+    <|> (Flow <$> flCell <*> pure Nil)
 
 flCell :: Parser Exp
 flCell =
   qcToken flFRef
-    <+> (Cell <$> flFMod <*> qcToken flFRef)
-    <+> (   Cell
-        <$> (flFMod <+> pure MNone)
+    <|> (Cell <$> flFMod <*> qcToken flFRef)
+    <|> (   Cell
+        <$> (flFMod <|> pure MNone)
         <*> qcEnclosedBy (qctChar '{') (qctChar '}') _innerExp
         )
-  where _innerExp = flFunc <+> flExpr
+  where _innerExp = flFunc <|> flExpr
 
 flTerm :: Parser Exp
 flTerm =
   flCast
-    <+> qcEnclosedBy (qcToken (qcChar '(')) (qcToken (qcChar ')')) flTerm
-    <+> flIo
-    <+> flLiteral
-    <+> flBinaryOp
-    <+> flVar
+    <|> qcEnclosedBy (qcToken (qcChar '(')) (qcToken (qcChar ')')) flTerm
+    <|> flIo
+    <|> flLiteral
+    <|> flBinaryOp
+    <|> flVar
 
 flId :: Parser String
-flId = (:) <$> qcProp _fst <*> qcMany
+flId = (:) <$> qcProp _fst <*> many
   (qcProp (\c -> or [ f c | f <- [isLetter, isDigit, (`elem` "_'")] ]))
   where _fst c = isLetter c || c `elem` "_'"
 
@@ -217,7 +218,7 @@ flCast =
     <$> qcMaybeEnclosedBy (qctChar '(') (qctChar ')') (qcToken _subTerm)
     <*  qctStr "::"
     <*> qcMaybeEnclosedBy (qctChar '(') (qctChar ')') (qcToken flType)
-  where _subTerm = flIo <+> flLiteral <+> flBinaryOp <+> flVar
+  where _subTerm = flIo <|> flLiteral <|> flBinaryOp <|> flVar
 
 
 
@@ -241,10 +242,10 @@ flFMod =
 flFunc :: Parser Exp
 flFunc =
   Func
-    <$> ((Just <$> qcToken flLabel) <@> pure Nothing)
-    <*> (qcToken flArgs <+> pure [])
+    <$> ((Just <$> qcToken flLabel) <|> pure Nothing)
+    <*> (qcToken flArgs <|> pure [])
     <*  qctChar '.'
-    <*> (qcToken flReturnType <+> pure TAny)
+    <*> (qcToken flReturnType <|> pure TAny)
     <*> qcToken flFBody
 
 flFRef :: Parser Exp
@@ -259,7 +260,7 @@ flArg =
                                               (qcChar ')')
                                               (qcToken flType)
     )
-    <+> (Arg <$> qcToken flId <*> pure TAny)
+    <|> (Arg <$> qcToken flId <*> pure TAny)
 
 flArgs :: Parser [Arg]
 flArgs = qcSeparatedBy (qctChar ',') flArg
@@ -273,11 +274,11 @@ flFBody =
     <$> qcToken flExpr
     <*  qctChar '|'
     <*> _innerExpr
-    <*> (flFBody <@> pure FNil)
+    <*> (flFBody <|> pure FNil)
     )
-    <+> (Single <$ qctChar '|' <*> _innerExpr)
-    <+> (Single <$> _innerExpr)
-  where _innerExpr = qcToken (flProgram <+> flExpr)
+    <|> (Single <$ qctChar '|' <*> _innerExpr)
+    <|> (Single <$> _innerExpr)
+  where _innerExpr = qcToken (flProgram <|> flExpr)
 
 
 
@@ -286,17 +287,17 @@ flFBody =
 :--------------------------------}
 
 flIo :: Parser Exp
-flIo = Io <$> (flIoIn <+> flIoOut)
+flIo = Io <$> (flIoIn <|> flIoOut)
 
 flIoIn :: Parser IoExp
 flIoIn =
   (IoFileIn <$> qcToken flPath <* qctStr "~>" <*> qcToken flType)
-    <+> (IoStdIn <$> (qctStr "~>" *> qcToken flType))
+    <|> (IoStdIn <$> (qctStr "~>" *> qcToken flType))
 
 flIoOut :: Parser IoExp
 flIoOut =
   (IoFileOut <$> qcToken flPath <* qctStr "<~" <*> qcToken flType)
-    <+> (IoStdOut <$> (qctStr "<~" *> qcToken flType))
+    <|> (IoStdOut <$> (qctStr "<~" *> qcToken flType))
 
 flPath :: Parser String
 flPath = do
@@ -311,7 +312,7 @@ flPath = do
 :--------------------------------}
 
 flOperator :: Parser Operator
-flOperator = foldl1 (<+>) $ aux <$> ops
+flOperator = foldl1 (<|>) $ aux <$> ops
  where
   aux (f, s) = f <$ qcStr s
   ops =
@@ -335,14 +336,14 @@ flBinaryOp :: Parser Exp
 flBinaryOp = BinOp <$> qcToken flOperator <*> qcToken flTerm <*> qcToken flTerm
 
 flVar :: Parser Exp
-flVar = _var <+> _cSlice <+> _cSingle
+flVar = _var <|> _cSlice <|> _cSingle
  where
   _var = Var <$> flId
   _cSlice =
     CSlice
       <$> (qcChar '&' *> qcNatural)
       <*  qcChar ':'
-      <*> (Just <$> qcNatural <+> pure Nothing)
+      <*> (Just <$> qcNatural <|> pure Nothing)
       <&> Capture
   _cSingle = CSingle <$> (qcChar '&' *> qcNatural) <&> Capture
 
@@ -358,7 +359,7 @@ flPrintAST prs
   where (e, r) = flDistillReturn prs
 
 flParseString :: String -> PReturn Exp
-flParseString = runParser flProgram . qcCtxOfString . removeComments
+flParseString = flFixRootProgram . runParser flProgram . qcCtxOfString . removeComments
 
 flParseFile :: FilePath -> IO (Either String (PReturn Exp))
 flParseFile path = second flParseString <$> gatherFile path
