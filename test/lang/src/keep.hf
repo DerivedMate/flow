@@ -3,7 +3,7 @@
 %%
 
 { n(Int).
-    > n 0 | (n; - n 1)
+    > n 0 | (n, - n 1)
 } => let ~iter
 { n(Int). == 0 ( % n 2 ) }
   => let ~isEven

@@ -15,6 +15,7 @@ import           Module.Module
 import           PreProcessor
 import           System.IO
 import           Text.Pretty.Simple
+import Debug.Pretty.Simple
 
 data CType
   = CSingle Int
@@ -123,46 +124,32 @@ flInt = LInt <$> qcNum
 
 flFloat :: Parser Exp
 flFloat =
-  LFloat 
-  <$> (do
-    a <- qcNum
-    _ <- qcChar '.'
-    b <- qcNatural <+> pure 0
-    return (read $ show a <> "." <> show b)
-  )
+  LFloat
+    <$> (do
+          a <- qcNum
+          _ <- qcChar '.'
+          b <- qcNatural <+> pure 0
+          return (read $ show a <> "." <> show b)
+        )
 
 flBool :: Parser Exp
-flBool = LBool <$> ( (qcStr "True"  $> True) 
-               <+>   (qcStr "False" $> False)
-                 )
+flBool = LBool <$> ((qcStr "True" $> True) <+> (qcStr "False" $> False))
 
 flStr :: Parser Exp
-flStr = LString <$> qcEnclosedBy 
-                      (qcChar '`') 
-                      (qcChar '`') 
-                      (qcMany $ qcProp (/= '`')
-                    )
+flStr =
+  LString <$> qcEnclosedBy (qcChar '`') (qcChar '`') (qcMany $ qcProp (/= '`'))
 
 flTuple :: Parser Exp
-flTuple = LTuple 
-  <$> qcEnclosedBy 
-        (qcChar '(') 
-        (qcChar ')') 
-        ( qcSeparatedBy 
-          (qctChar ',')
-          flTerm
-        )
+flTuple = (LTuple <$> qcEnclosedBy (qcChar '(')
+                                  (qcChar ')')
+                                  (qcSeparatedBy (qctChar ',') flTerm))
+       <+> (qctChar '(' *> qctChar ')' $> Nil)
 
 flList :: Parser Exp
-flList = LList 
-  <$> qcEnclosedBy 
-        (qcChar '[') 
-        (qcChar ']') 
-        ( qcSeparatedBy 
-          (qctChar ',')
-          flTerm
-        )
-
+flList = (LList <$> qcEnclosedBy (qcChar '[')
+                                (qcChar ']')
+                                (qcSeparatedBy (qctChar ',') flTerm))
+      <+> (LList <$> (qctChar '[' *> qctChar ']' $> []) )
 
 
 
@@ -171,25 +158,17 @@ flList = LList
 :--------------------------------}
 
 flType :: Parser Type
-flType = _simple <+> _func <+> _list
-  where
-    _simple =  ( TInt    <$ qctStr "Int"   )
-           <@> ( TFloat  <$ qctStr "Float" )
-           <@> ( TString <$ qctStr "Str"   )
-           <@> ( TString <$ qctStr "Bool"  )
-           <@> ( TAny    <$ qctStr "Any"   )
-    _list   = 
-      TList <$>
-      qcEnclosedBy 
-        (qctChar '[')
-        (qctChar ']')
-        flType
-    _func   =
-      (TFunc <$> __notFunc 
-             <*  qctStr "->"
-             <*> _func
-      ) <@> _simple 
-    __notFunc = _list <@> _simple
+flType = _func <+> _simple <+> _list
+ where
+  _simple =
+    (TInt <$ qctStr "Int")
+      <@> (TFloat <$ qctStr "Float")
+      <@> (TString <$ qctStr "Str")
+      <@> (TString <$ qctStr "Bool")
+      <@> (TAny <$ qctStr "Any")
+  _list     = TList <$> qcEnclosedBy (qctChar '[') (qctChar ']') flType
+  _func     = (TFunc <$> __notFunc <* qctStr "->" <*> _func) <@> _simple
+  __notFunc = qcToken (_list <@> _simple)
 
 
 
@@ -201,57 +180,43 @@ flProgram :: Parser Exp
 flProgram = (Program <$> flFlow <*> flProgram) <+> flFlow
 
 flExpr :: Parser Exp
-flExpr = flTerm <+> flFlow
+flExpr = flTerm <@> flFlow
 
 flFlow :: Parser Exp
 flFlow =
-  ( Flow <$> qcToken flCell 
-         <*  qctStr "=>"
-         <*> flFlow 
-  ) <+> 
-  ( Flow <$> flCell <*> pure Nil )
+  (Flow <$> qcToken flCell <* qctStr "=>" <*> flFlow)
+    <+> (Flow <$> flCell <*> pure Nil)
 
 flCell :: Parser Exp
-flCell = 
-      qcToken flFRef 
-  <+> ( Cell <$> flFMod <*> qcToken flFRef )
-  <+> ( Cell <$> ( flFMod <+> pure MNone )
-             <*> qcMaybeEnclosedBy  
-                    (qctChar '{')
-                    (qctChar '}')
-                   _innerExp
-      )
+flCell =
+  qcToken flFRef
+    <+> (Cell <$> flFMod <*> qcToken flFRef)
+    <+> (   Cell
+        <$> (flFMod <+> pure MNone)
+        <*> qcEnclosedBy (qctChar '{') (qctChar '}') _innerExp
+        )
   where _innerExp = flFunc <+> flExpr
 
 flTerm :: Parser Exp
 flTerm =
-      flCast 
-  <+> qcEnclosedBy 
-        (qcToken (qcChar '(')) 
-        (qcToken (qcChar ')')) 
-        flTerm
-  <+> flIo
-  <+> flLiteral
-  <+> flBinaryOp
-  <+> flVar
+  flCast
+    <+> qcEnclosedBy (qcToken (qcChar '(')) (qcToken (qcChar ')')) flTerm
+    <+> flIo
+    <+> flLiteral
+    <+> flBinaryOp
+    <+> flVar
 
 flId :: Parser String
-flId = (:) <$> qcProp _fst
-           <*> qcMany (qcProp (\c -> or [f c | f <- [isLetter, isDigit, (`elem` "_'")]]))
-        where _fst c = isLetter c || c `elem` "_'"
+flId = (:) <$> qcProp _fst <*> qcMany
+  (qcProp (\c -> or [ f c | f <- [isLetter, isDigit, (`elem` "_'")] ]))
+  where _fst c = isLetter c || c `elem` "_'"
 
-flCast :: Parser Exp 
-flCast = 
-  Casting 
-  <$> qcMaybeEnclosedBy 
-        (qctChar '(') 
-        (qctChar ')') 
-        (qcToken _subTerm)
-  <*  qctStr "::"
-  <*> qcMaybeEnclosedBy 
-        (qctChar '(') 
-        (qctChar ')') 
-        (qcToken flType)
+flCast :: Parser Exp
+flCast =
+  Casting
+    <$> qcMaybeEnclosedBy (qctChar '(') (qctChar ')') (qcToken _subTerm)
+    <*  qctStr "::"
+    <*> qcMaybeEnclosedBy (qctChar '(') (qctChar ')') (qcToken flType)
   where _subTerm = flIo <+> flLiteral <+> flBinaryOp <+> flVar
 
 
@@ -262,19 +227,20 @@ flCast =
 :--------------------------------}
 
 flFMod :: Parser FMod
-flFMod = (MMap      <$ qctStr "map"   )
-     <+> (MKeepEnum <$ qctStr "keep[]")
-     <+> (MKeep     <$ qctStr "keep"  )
-     <+> (MGen      <$ qctStr "gen"   )
-     <+> (MFold     <$ qctStr "fold"  )
-     <+> (MUnfold   <$ qctStr "unfold")
-     <+> (MLet      <$ qctStr "let"   )
-     <+> (MExport   <$ qctStr "export")
-     <+> (MLazy     <$ qctStr "lazy"  )
+flFMod =
+  (MMap <$ qctStr "map")
+    <|> (MKeepEnum <$ qctStr "keep[]")
+    <|> (MKeep <$ qctStr "keep")
+    <|> (MGen <$ qctStr "gen")
+    <|> (MFold <$ qctStr "fold")
+    <|> (MUnfold <$ qctStr "unfold")
+    <|> (MLet <$ qctStr "let")
+    <|> (MExport <$ qctStr "export")
+    <|> (MLazy <$ qctStr "lazy")
 
 flFunc :: Parser Exp
-flFunc = 
-  Func 
+flFunc =
+  Func
     <$> ((Just <$> qcToken flLabel) <@> pure Nothing)
     <*> (qcToken flArgs <+> pure [])
     <*  qctChar '.'
@@ -289,33 +255,29 @@ flLabel = qcChar '~' *> qcToken flId
 
 flArg :: Parser Arg
 flArg =
-  (     Arg <$> qcToken flId 
-            <*> qcMaybeEnclosedBy 
-                 (qcChar '(') 
-                 (qcChar ')') 
-                 (qcToken flType)
-  ) <+> (Arg <$> qcToken flId <*> pure TAny)
+  (Arg <$> qcToken flId <*> qcMaybeEnclosedBy (qcChar '(')
+                                              (qcChar ')')
+                                              (qcToken flType)
+    )
+    <+> (Arg <$> qcToken flId <*> pure TAny)
 
 flArgs :: Parser [Arg]
 flArgs = qcSeparatedBy (qctChar ',') flArg
 
 flReturnType :: Parser Type
-flReturnType = qcMaybeEnclosedBy 
-                (qcChar '(') 
-                (qcChar ')') 
-                (qcToken flType)
+flReturnType = qcMaybeEnclosedBy (qcChar '(') (qcChar ')') (qcToken flType)
 
 flFBody :: Parser FuncExp
 flFBody =
-  ( Cond
-      <$> qcToken flExpr
-      <*  qctChar '|'
-      <*> _innerExpr
-      <*> (flFBody <@> pure FNil)
-  ) <+>
-  ( Single <$ qctChar '|' <*> _innerExpr ) <+>
-  ( Single <$> _innerExpr)
-  where _innerExpr = qcToken ( flProgram <+> flExpr )
+  (   Cond
+    <$> qcToken flExpr
+    <*  qctChar '|'
+    <*> _innerExpr
+    <*> (flFBody <@> pure FNil)
+    )
+    <+> (Single <$ qctChar '|' <*> _innerExpr)
+    <+> (Single <$> _innerExpr)
+  where _innerExpr = qcToken (flProgram <+> flExpr)
 
 
 
@@ -327,26 +289,14 @@ flIo :: Parser Exp
 flIo = Io <$> (flIoIn <+> flIoOut)
 
 flIoIn :: Parser IoExp
-flIoIn 
-  = ( IoFileIn <$> qcToken flPath
-               <*  qctStr "~>"
-               <*> qcToken flType
-    ) <+>
-    ( IoStdIn  <$> ( qctStr "~>" 
-                     *> qcToken flType 
-                   )
-    )
+flIoIn =
+  (IoFileIn <$> qcToken flPath <* qctStr "~>" <*> qcToken flType)
+    <+> (IoStdIn <$> (qctStr "~>" *> qcToken flType))
 
 flIoOut :: Parser IoExp
-flIoOut 
-  = ( IoFileOut <$> qcToken flPath
-               <*  qctStr "<~"
-               <*> qcToken flType
-    ) <+>
-    ( IoStdOut  <$> ( qctStr "<~" 
-                     *> qcToken flType 
-                   )
-    )
+flIoOut =
+  (IoFileOut <$> qcToken flPath <* qctStr "<~" <*> qcToken flType)
+    <+> (IoStdOut <$> (qctStr "<~" *> qcToken flType))
 
 flPath :: Parser String
 flPath = do
@@ -382,41 +332,47 @@ flOperator = foldl1 (<+>) $ aux <$> ops
     ]
 
 flBinaryOp :: Parser Exp
-flBinaryOp =
-  BinOp <$> qcToken flOperator 
-        <*> qcToken flTerm
-        <*> qcToken flTerm
+flBinaryOp = BinOp <$> qcToken flOperator <*> qcToken flTerm <*> qcToken flTerm
 
 flVar :: Parser Exp
 flVar = _var <+> _cSlice <+> _cSingle
-  where
-    _var = Var <$> flId
-    _cSlice = CSlice 
-          <$> (qcChar '&' *> qcNatural)
-          <*  qcChar ':'
-          <*> (Just <$> qcNatural <+> pure Nothing)
-          <&> Capture
-    _cSingle = CSingle
-          <$> ( qcChar '&' *> qcNatural )
-          <&> Capture
+ where
+  _var = Var <$> flId
+  _cSlice =
+    CSlice
+      <$> (qcChar '&' *> qcNatural)
+      <*  qcChar ':'
+      <*> (Just <$> qcNatural <+> pure Nothing)
+      <&> Capture
+  _cSingle = CSingle <$> (qcChar '&' *> qcNatural) <&> Capture
 
 {--------------------------------:
     Helpers
 :--------------------------------}
 
-flLastError :: [PReturn a] -> Maybe ParseError
-flLastError = listToMaybe . sortBy (aux `on` peContext) . lefts
+flPrintAST :: PReturn Exp -> IO ()
+flPrintAST prs
+  | Just pr <- r = pPrint (prResult pr)
+  | Just pe <- e = pPrint pe
+  | otherwise = error $ "[printAST]: unmatched guards; argument: " <> show prs
+  where (e, r) = flDistillReturn prs
+
+flParseString :: String -> PReturn Exp
+flParseString = runParser flProgram . qcCtxOfString . removeComments
+
+flParseFile :: FilePath -> IO (Either String (PReturn Exp))
+flParseFile path = second flParseString <$> gatherFile path
+
+
+flFixRootProgram :: PReturn Exp -> PReturn Exp
+flFixRootProgram r
+  | Left _ <- r   = r
+  | Right rr <- r = Right $ rr { prResult = fixRoot . prResult $ rr }
  where
-  aux :: ParseContext -> ParseContext -> Ordering
-  aux a b =
-    let ac = ctxColumn a
-        al = ctxLine a
-        bc = ctxColumn b
-        bl = ctxLine b
-    in  case (Down al `compare` Down bl, Down ac `compare` Down bc) of
-          (EQ, c) -> c
-          (c , _) -> c
+  fixRoot :: Exp -> Exp
+  fixRoot e | Program{} <- e = e
+            | otherwise      = Program e Nil
 
-flLastResult :: Show a => [PReturn a] -> Maybe (ParseResult a)
-flLastResult = listToMaybe . sortOn (Down . length . show . prResult) . rights
-
+flDistillReturn :: PReturn Exp -> (Maybe ParseError, Maybe (ParseResult Exp))
+flDistillReturn prs | Right r <- prs = (Nothing, Just r)
+                    | Left e <- prs  = (Just e, Nothing)

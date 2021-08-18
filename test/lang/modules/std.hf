@@ -3,5 +3,5 @@
 { a Str. a }
   => let ~toStr
 { n Int.
-    > n 0 | (n; - n 1)
+    > n 0 | (n, - n 1)
 } => let ~iter

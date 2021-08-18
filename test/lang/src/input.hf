@@ -5,18 +5,18 @@
 { ~> Bool  } => { <~ Bool  }
 
 %% Lists %%
-{ ~> List      } => { <~ List      }
-{ ~> List<Str> } => { <~ List<Str> }
+{ ~> [Any] } => { <~ [Any] }
+{ ~> [Str] } => { <~ [Str] }
 
 %% Multiple Lines %%
 { 5 } => unfold 
          { left. 
-            > left 0 | (~> Int; - left 1) 
+            > left 0 | (~> Int, - left 1) 
          } 
-      => { <~ List<Int> }
+      => { <~ [Int] }
 
 %% All the lines %%
    { ~> Any } 
-=> unfold { a. a | (a; ~> Any) }
-=> { <~ List<Any> }
+=> unfold { a. a | (a, ~> Any) }
+=> { <~ [Any] }
 

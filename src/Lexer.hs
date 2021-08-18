@@ -37,29 +37,30 @@ qcCtxOfString = ParseContext 1 1
 
 type PReturn a = Either ParseError (ParseResult a)
 newtype Parser a
-  = Parser { runParser :: ParseContext -> [PReturn a]}
+  = Parser { runParser :: ParseContext -> PReturn a }
 
 instance Functor Parser where
-  fmap f p = Parser $ \c -> let rs = runParser p c in map (second (fmap f)) rs
+  fmap f p = Parser $ \c -> let rs = runParser p c in second (fmap f) rs
 
 instance Applicative Parser where
-  pure a = Parser $ \c -> [Right $ ParseResult a c]
-  fp <*> qp = Parser $ \c ->
-    let (frsE, frsR) = partitionEithers $ runParser fp c
-        (qrsE, qrsR) =
-          partitionEithers $ concatMap (runParser qp . prNewContext) frsR
-    in  [ Right (fmap f q) | q <- qrsR, f <- prResult <$> frsR ]
-        <> map Left (frsE <> qrsE)
+  pure a = Parser $ \c -> Right $ ParseResult a c
+  fp <*> qp = Parser $ \c -> case runParser fp c of
+    Right f -> fmap (fmap (prResult f)) (runParser qp (prNewContext f))
+    Left  e -> Left e
+
 
 instance Monad Parser where
-  qp >>= f = Parser $ \c ->
-    let (qrsE, qrsR) = partitionEithers $ runParser qp c
-        frss =
-          zipWith runParser (map (f . prResult) qrsR) (map prNewContext qrsR)
-    in  concat frss <> map Left qrsE
+  qp >>= f = Parser $ \c -> case runParser qp c of
+    Left  e  -> Left e
+    Right qr -> runParser (f . prResult $ qr) (prNewContext qr)
 
 instance MonadFail Parser where
-  fail _ = Parser $ const []
+  fail msg = Parser $ const
+    (Left $ ParseError { peContext  = qcCtxOfString ""
+                       , peExpected = ""
+                       , peGot      = msg
+                       }
+    )
 
 class (Applicative f) => QCAlternative f where
   qcEmpty :: Eq a => f a
@@ -84,16 +85,24 @@ class (Applicative f) => QCAlternative f where
       some_v = liftA2 (:) v many_v
 
 instance QCAlternative Parser where
-  qcEmpty = Parser $ const []
+  qcEmpty = fail ""
   p <+> q = Parser $ \c ->
     let rp = runParser p c
         rq = runParser q c
-    in  nub $ rp `union` rq
+    in  case (rp, rq) of
+          (Right _, _) -> rp
+          _            -> rq
 
-  p <@> q = Parser $ \c ->
+  (<@>) = (<+>)
+
+instance Alternative Parser where
+  empty = fail ""
+  p <|> q = Parser $ \c ->
     let rp = runParser p c
         rq = runParser q c
-    in  if (null . rights) rp then nub rq else nub rp
+    in  case (rp, rq) of
+          (Right _, _) -> rp
+          _            -> rq
 
 
 data InCtx a = InCtx
@@ -105,25 +114,24 @@ data InCtx a = InCtx
 qcChar :: Char -> Parser Char
 qcChar k = Parser aux
  where
-  aux :: ParseContext -> [PReturn Char]
+  aux :: ParseContext -> PReturn Char
   aux c
     | s@(k' : ks) <- ctxString c
     , k' == k
     = let dl = ((-) `on` (length . lines)) s ks
           dc | dl > 0    = -(ctxColumn c) + 1
              | otherwise = 1
-      in  [ Right $ ParseResult
-              { prResult     = k
-              , prNewContext = c { ctxColumn = ctxColumn c + dc
-                                 , ctxLine   = ctxLine c + dl
-                                 , ctxString = ks
-                                 }
-              }
-          ]
+      in  Right $ ParseResult
+            { prResult     = k
+            , prNewContext = c { ctxColumn = ctxColumn c + dc
+                               , ctxLine   = ctxLine c + dl
+                               , ctxString = ks
+                               }
+            }
     | (k' : _) <- ctxString c
-    = [Left $ ParseError { peContext = c, peExpected = [k], peGot = [k'] }]
+    = Left $ ParseError { peContext = c, peExpected = [k], peGot = [k'] }
     | otherwise
-    = [Left $ ParseError { peContext = c, peExpected = [k], peGot = "" }]
+    = Left $ ParseError { peContext = c, peExpected = [k], peGot = "" }
 
 qctChar :: Char -> Parser Char
 qctChar = qcToken . qcChar
@@ -132,13 +140,18 @@ qcStr :: String -> Parser String
 qcStr = mapM qcChar
 
 qctStr :: String -> Parser String
-qctStr = qcToken . qcStr  
+qctStr = qcToken . qcStr
 
 qcProp :: (Char -> Bool) -> Parser Char
 qcProp f = Parser aux
  where
-  aux c | k : ks <- ctxString c, f k = runParser (qcChar k) c
-        | otherwise                  = []
+  aux c
+    | k : ks <- ctxString c, f k = runParser (qcChar k) c
+    | otherwise = Left $ ParseError { peContext  = qcCtxOfString ""
+                                    , peExpected = ""
+                                    , peGot      = "[unpamtched proposition]"
+                                    }
+
 
 qcNat :: Parser Char
 qcNat = qcProp isDigit
@@ -169,16 +182,3 @@ qcMaybeEnclosedBy l r p = qcEnclosedBy l r p <+> p
 qcSeparatedBy :: (Eq s, Eq e) => Parser s -> Parser e -> Parser [e]
 qcSeparatedBy s e = ((:) <$> (e <* s) <*> qcSeparatedBy s e) <+> (: []) <$> e
 
-data E
-  = EInt Int
-  | EList [E]
-  | ETuple [E]
-  deriving (Show, Eq)
-
-qcLE :: Parser E
-qcLE = _list <+> _tuple <+> _int
- where
-  _int   = EInt <$> qcNatural
-  _tuple = ETuple <$> qcEnclosedBy (qcChar '(') (qcChar ')') _tlc
-  _list  = EList <$> qcEnclosedBy (qcChar '[') (qcChar ']') _tlc
-  _tlc   = qcSeparatedBy (qcToken (qcChar ',')) qcLE

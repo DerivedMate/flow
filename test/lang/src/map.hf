@@ -1,5 +1,5 @@
-{ n(Int). > n 0 | (n; - n 1) }
+{ n(Int). > n 0 | (n, - n 1) }
   => let ~iter
 
 {[3, 2, 1]} => map { n Int. { n } => gen { ~iter } } 
-            => { <~ List<Int> }
+            => { <~ [Int] }

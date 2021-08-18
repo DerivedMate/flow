@@ -14,13 +14,16 @@ syntaxTests
              -}
              ]
 
-prun :: String -> ParseResult
-prun src =
-  let r = parseString src
-  in r { prSrc = "" }
+prun :: String -> ParseResult Exp 
+prun src 
+  | Right r <- flParseString src = r
+  | otherwise = error src
   
-properTree :: Exp -> ParseResult  
-properTree t = parseResultOfRoot "" $ fixRootProgram (Just (t, ""))
+properTree :: Exp -> ParseResult Exp  
+properTree t = flFixRootProgram $ 
+  ParseResult { prResult = t
+              , prNewContext = qcCtxOfString ""
+              }
 
 testBinOp 
   = TestList [ TestCase (

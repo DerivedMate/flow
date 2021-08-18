@@ -24,8 +24,12 @@ rTest = runReducer rStaticFuncExp
   e    = Single (LTuple [BinOp OpAdd (LInt 3) (Var "a")])
 
 rIoTestString :: String -> IO ()
-rIoTestString =
-  (pPrint . fmap (runReducer rStaticExp emptyState)) . prExp . parseString
+rIoTestString src
+  | Just ast <- r = pPrint . fmap (runReducer rStaticExp emptyState) $ ast
+  | Just pe <- e  = pPrint pe
+ where
+  (e, r) = flDistillReturn (flParseString src)
+  
 
 rStaticFuncExp :: Reducer FuncExp Bool
 rStaticFuncExp = Reducer aux
@@ -116,9 +120,7 @@ rStaticExp = Reducer aux
         fns = maybe
           []
           (\k ->
-            [ (k, RTFunc l (rtArgOfArg <$> args) rt fe)
-            | not (funcExists k s)
-            ]
+            [ (k, RTFunc l (rtArgOfArg <$> args) rt fe) | not (funcExists k s) ]
           )
           l
         (appliedArgs, leftArgs) = splitAt ((rtLength . stLast) s) args

@@ -41,11 +41,11 @@ library
       Lexer
       Module.Graph
       Module.Module
-      OldSyntax
       PreProcessor
       Reduction.Nullable
       Reduction.Reducer
       Reduction.Static
+      Syntax
   other-modules:
       Paths_flow
   hs-source-dirs:
