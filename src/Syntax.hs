@@ -242,7 +242,7 @@ flFMod =
 flFunc :: Parser Exp
 flFunc =
   Func
-    <$> ((Just <$> qcToken flLabel) <|> pure Nothing)
+    <$> optional (qcToken flLabel)
     <*> (qcToken flArgs <|> pure [])
     <*  qctChar '.'
     <*> (qcToken flReturnType <|> pure TAny)
@@ -343,7 +343,7 @@ flVar = _var <|> _cSlice <|> _cSingle
     CSlice
       <$> (qcChar '&' *> qcNatural)
       <*  qcChar ':'
-      <*> (Just <$> qcNatural <|> pure Nothing)
+      <*> optional qcNatural
       <&> Capture
   _cSingle = CSingle <$> (qcChar '&' *> qcNatural) <&> Capture
 
