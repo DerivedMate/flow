@@ -13,7 +13,7 @@ stepLiteral _    (LFloat  a ) s = pure [Datum Nil (s { stLast = RTFloat a })]
 stepLiteral _    (LBool   a ) s = pure [Datum Nil (s { stLast = RTBool a })]
 stepLiteral _    (LString a ) s = pure [Datum Nil (s { stLast = RTString a })]
 
-stepLiteral step (LTuple  ts) s = (: []) . aux . concat <$> mapM (`step` s) ts
+stepLiteral step (LTuple  ts) s = (: []) . aux . concat <$> mapM (\t -> stepExhaust step t s) ts
  where
   aux ds =
     let l' = map (stLast . datumState) ds

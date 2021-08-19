@@ -117,7 +117,7 @@ data Exp
 :--------------------------------}
 
 flLiteral :: Parser Exp
-flLiteral = flTuple <|> flList <|> flStr <|> flFloat <|> flBool <|> flInt
+flLiteral = flTuple <|> flList <|> flStr <|> flFloat <|> flBool <|> flInt <|> flVar
 
 flInt :: Parser Exp
 flInt = LInt <$> qcNum
@@ -176,7 +176,7 @@ flType = _func <|> _simple <|> _list
     (TInt <$ qctStr "Int")
       <|> (TFloat <$ qctStr "Float")
       <|> (TString <$ qctStr "Str")
-      <|> (TString <$ qctStr "Bool")
+      <|> (TBool <$ qctStr "Bool")
       <|> (TAny <$ qctStr "Any")
   _list     = TList <$> qcEnclosedBy (qctChar '[') (qctChar ']') flType
   _func     = (TFunc <$> __notFunc <* qctStr "->" <*> _func) <|> __notFunc

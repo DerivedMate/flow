@@ -873,6 +873,21 @@ testInlineExpr
                 ))
                 (prun "{ &(~> Int):(~> Int) }")
                ),
+               TestCase (
+                assertEqual "Slice Capture Vars" 
+                (properTree (
+                  Flow 
+                    (Cell MNone (
+                      Capture (
+                        CSlice 
+                          (Var "l")
+                          (Just (Var "r"))
+                      )
+                    ))
+                    Nil
+                ))
+                (prun "{ &l:r }")
+               ),
                
 
 

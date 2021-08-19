@@ -28,3 +28,4 @@
 2021-08-16 02:53:10.185727584000 [76745(ThreadId 21)] ERROR APP - user error (variable id:10 not found.)
 2021-08-16 02:53:13.127143317000 [76745(ThreadId 21)] ERROR APP - invalid dap result from ghci. []
 2021-08-16 02:53:19.496726522000 [76745(ThreadId 21)] CRITICAL APP - <file descriptor: 149>: hPutChar: resource vanished (Broken pipe)
+2021-08-19 16:12:41.846092585000 [42903(ThreadId 20)] CRITICAL REQUEST - invalid HANDLE. eof.

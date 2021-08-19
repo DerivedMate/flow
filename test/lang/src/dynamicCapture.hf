@@ -1,0 +1,22 @@
+{ ls. 
+  { ls } => { &(&1:) } 
+} => let ~last
+
+{ l, r, xs.
+  { xs } => { &l:r }
+} => let ~slice
+
+{ ~> [ Int ] }
+  => ~last
+  => { <~ Int }
+
+{ ~> [ Int ] }
+  => {( last, &0, &0: )}
+  => ~slice
+  => { <~ [ Int ] }
+  
+{ ~> [ Float ] }
+  => {( &0, &1, &2: :: [ Bool ] )}
+  => ~slice
+  => { <~ [ Any ] }
+  
