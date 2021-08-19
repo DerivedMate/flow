@@ -117,7 +117,8 @@ data Exp
 :--------------------------------}
 
 flLiteral :: Parser Exp
-flLiteral = flTuple <|> flList <|> flStr <|> flFloat <|> flBool <|> flInt <|> flVar
+flLiteral =
+  flTuple <|> flList <|> flStr <|> flFloat <|> flBool <|> flInt <|> flVar
 
 flInt :: Parser Exp
 flInt = LInt <$> qcNum
@@ -146,9 +147,7 @@ flTuple =
       _ <- qctChar ')'
       pure Nil
     )
-    <|> qcEnclosedBy (qcChar '(')
-                     (qcChar ')')
-                     flTerm      
+    <|> qcEnclosedBy (qcChar '(') (qcChar ')') flTerm
     <|> (LTuple <$> qcEnclosedBy (qcChar '(')
                                  (qcChar ')')
                                  (qcSeparatedBy (qctChar ',') flTerm)
@@ -357,7 +356,7 @@ flVar = _var <|> _cSlice <|> _cSingle
       <*> optional _cTerm
       <&> Capture
   _cSingle = CSingle <$> (qcChar '&' *> _cTerm) <&> Capture
-  _cTerm = flLiteral <|> qcEnclosedBy (qctChar '(') (qctChar ')') flTerm
+  _cTerm   = flLiteral <|> qcEnclosedBy (qctChar '(') (qctChar ')') flTerm
 
 {--------------------------------:
     Helpers
@@ -372,7 +371,22 @@ flPrintAST prs
 
 flParseString :: String -> PReturn Exp
 flParseString =
-  flFixRootProgram . runParser flProgram . qcCtxOfString . removeComments
+  checkFullParse
+    . flFixRootProgram
+    . runParser flProgram
+    . qcCtxOfString
+    . removeComments
+ where
+  checkFullParse :: Either ParseError (ParseResult Exp) -> PReturn Exp
+  checkFullParse (Right r)
+    | not . null . ctxString $ ctx = Left
+    $ ParseError { peContext = ctx
+                 , peExpected = ""
+                 , peGot = ctxString ctx 
+                 }
+    | otherwise = Right r
+    where ctx = prNewContext r
+  checkFullParse l = l
 
 flParseFile :: FilePath -> IO (Either String (PReturn Exp))
 flParseFile path = second flParseString <$> gatherFile path
