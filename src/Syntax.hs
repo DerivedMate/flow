@@ -10,16 +10,16 @@ import           Data.Functor
 import           Data.List
 import           Data.Maybe
 import           Data.Ord
+import           Debug.Pretty.Simple
 import           Lexer
 import           Module.Module
 import           PreProcessor
 import           System.IO
 import           Text.Pretty.Simple
-import Debug.Pretty.Simple
 
 data CType
-  = CSingle Int
-  | CSlice Int (Maybe Int)
+  = CSingle Exp
+  | CSlice Exp (Maybe Exp)
   deriving ( Show, Eq )
 
 data AnchorType
@@ -140,17 +140,28 @@ flStr =
   LString <$> qcEnclosedBy (qcChar '`') (qcChar '`') (many $ qcProp (/= '`'))
 
 flTuple :: Parser Exp
-flTuple =  (do _ <- qctChar '('; _ <- qctChar ')'; pure Nil)
-       <|> (LTuple <$> qcEnclosedBy (qcChar '(')
-                                    (qcChar ')')
-                                    (qcSeparatedBy (qctChar ',') flTerm)) 
+flTuple =
+  (do
+      _ <- qctChar '('
+      _ <- qctChar ')'
+      pure Nil
+    )
+    <|> qcEnclosedBy (qcChar '(')
+                     (qcChar ')')
+                     flTerm      
+    <|> (LTuple <$> qcEnclosedBy (qcChar '(')
+                                 (qcChar ')')
+                                 (qcSeparatedBy (qctChar ',') flTerm)
+        )
 
 flList :: Parser Exp
-flList =  (LList <$> (qctChar '[' *> qctChar ']' $> []) )
-      <|> (LList <$> qcEnclosedBy (qcChar '[')
-                                  (qcChar ']')
-                                  (qcSeparatedBy (qctChar ',') flTerm))
-       
+flList =
+  (LList <$> (qctChar '[' *> qctChar ']' $> []))
+    <|> (LList <$> qcEnclosedBy (qcChar '[')
+                                (qcChar ']')
+                                (qcSeparatedBy (qctChar ',') flTerm)
+        )
+
 
 
 
@@ -341,11 +352,12 @@ flVar = _var <|> _cSlice <|> _cSingle
   _var = Var <$> flId
   _cSlice =
     CSlice
-      <$> (qcChar '&' *> qcNatural)
+      <$> (qcChar '&' *> _cTerm)
       <*  qcChar ':'
-      <*> optional qcNatural
+      <*> optional _cTerm
       <&> Capture
-  _cSingle = CSingle <$> (qcChar '&' *> qcNatural) <&> Capture
+  _cSingle = CSingle <$> (qcChar '&' *> _cTerm) <&> Capture
+  _cTerm = flLiteral <|> qcEnclosedBy (qctChar '(') (qctChar ')') flTerm
 
 {--------------------------------:
     Helpers
@@ -359,7 +371,8 @@ flPrintAST prs
   where (e, r) = flDistillReturn prs
 
 flParseString :: String -> PReturn Exp
-flParseString = flFixRootProgram . runParser flProgram . qcCtxOfString . removeComments
+flParseString =
+  flFixRootProgram . runParser flProgram . qcCtxOfString . removeComments
 
 flParseFile :: FilePath -> IO (Either String (PReturn Exp))
 flParseFile path = second flParseString <$> gatherFile path

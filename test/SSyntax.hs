@@ -4,12 +4,13 @@ import Syntax
 import Lexer
 
 syntaxTests 
-  = TestList [ TestLabel "BinOp" testBinOp 
-             , TestLabel "IO"    testIo 
-             , TestLabel "Primitives" testPrimitives
-             , TestLabel "Types" testTypes
-             , TestLabel "Func" testFunc
-             , TestLabel "Examples" testEaxmples
+  = TestList [ TestLabel "BinOp"              testBinOp 
+             , TestLabel "IO"                 testIo 
+             , TestLabel "Primitives"         testPrimitives
+             , TestLabel "Types"              testTypes
+             , TestLabel "Func"               testFunc
+             , TestLabel "Examples"           testExamples
+             , TestLabel "Inline Expressions" testInlineExpr
              {-
              -}
              ]
@@ -725,7 +726,188 @@ testFunc
       )
     ]
 
-testEaxmples 
+
+testInlineExpr 
+  = TestList [  {--------------------------------:
+                    Capture Literal
+                :--------------------------------}
+
+                TestCase (
+                assertEqual "Single Capture LInt" 
+                (properTree (
+                  Flow 
+                    (Cell MNone (
+                      Capture (
+                        CSingle (LInt 1)
+                      )
+                    ))
+                    Nil
+                ))
+                (prun "{ &1 }")
+               ),
+               TestCase (
+                assertEqual "Slice Capture LInts" 
+                (properTree (
+                  Flow 
+                    (Cell MNone (
+                      Capture (
+                        CSlice 
+                          (LInt 1)
+                          (Just (LInt 12))
+                      )
+                    ))
+                    Nil
+                ))
+                (prun "{ &1:12 }")
+               ),
+               TestCase (
+                assertEqual "Slice Capture One LInt" 
+                (properTree (
+                  Flow 
+                    (Cell MNone (
+                      Capture (
+                        CSlice 
+                          (LInt 0)
+                          Nothing
+                      )
+                    ))
+                    Nil
+                ))
+                (prun "{ &0: }")
+               ),
+
+
+
+               {--------------------------------:
+                   Capture BinOp
+               :--------------------------------}
+               TestCase (
+                assertEqual "Single Capture BinOp" 
+                (properTree (
+                  Flow 
+                    (Cell MNone (
+                      Capture (
+                        CSingle (
+                          BinOp OpAdd 
+                            (LInt 1)
+                            (LInt 39)
+                        )
+                      )
+                    ))
+                    Nil
+                ))
+                (prun "{ &(+ 1 39) }")
+               ),
+               TestCase (
+                assertEqual "Single Capture Nested BinOp" 
+                (properTree (
+                  Flow 
+                    (Cell MNone (
+                      Capture (
+                        CSingle (
+                          BinOp OpAdd 
+                            (BinOp OpAdd
+                              (LInt 1)
+                              (LInt 2)
+                            )
+                            (BinOp OpSub
+                              (LInt 3)
+                              (LInt 1)
+                            )
+                        )
+                      )
+                    ))
+                    Nil
+                ))
+                (prun "{ &(+ (+ 1 2) (- 3 1)) }")
+               ),
+
+
+
+
+               {--------------------------------:
+                   Capture Io
+               :--------------------------------}
+               TestCase (
+                assertEqual "Single Capture In Int" 
+                (properTree (
+                  Flow 
+                    (Cell MNone (
+                      Capture (
+                        CSingle (
+                          Io (IoStdIn TInt)
+                        )
+                      )
+                    ))
+                    Nil
+                ))
+                (prun "{ &(~> Int) }")
+               ),
+               TestCase (
+                assertEqual "Slice Capture In Int" 
+                (properTree (
+                  Flow 
+                    (Cell MNone (
+                      Capture (
+                        CSlice 
+                          (Io (IoStdIn TInt))
+                          Nothing
+                      )
+                    ))
+                    Nil
+                ))
+                (prun "{ &(~> Int): }")
+               ),
+               TestCase (
+                assertEqual "Slice Capture In Ints" 
+                (properTree (
+                  Flow 
+                    (Cell MNone (
+                      Capture (
+                        CSlice 
+                          (Io (IoStdIn TInt))
+                          (Just (Io (IoStdIn TInt)))
+                      )
+                    ))
+                    Nil
+                ))
+                (prun "{ &(~> Int):(~> Int) }")
+               ),
+               
+
+
+               {--------------------------------:
+                   Casting
+               :--------------------------------}
+               TestCase (
+                assertEqual "Capture Bare Cast" 
+                (properTree (
+                  Flow 
+                    (Cell MNone (
+                      Casting
+                        (Capture (CSingle (LInt 19)))
+                        TInt
+                    ))
+                    Nil
+                ))
+                (prun "{ &19 :: Int }")
+               ),
+               TestCase (
+                assertEqual "Capture Slice Bare Cast" 
+                (properTree (
+                  Flow 
+                    (Cell MNone (
+                      Casting
+                        (Capture (CSlice (LInt 19) Nothing))
+                        TInt
+                    ))
+                    Nil
+                ))
+                (prun "{ &19: :: Int }")
+               )
+             ]
+
+testExamples 
   = TestList [ TestCase (
                 do 
                 let 

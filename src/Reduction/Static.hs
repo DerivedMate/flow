@@ -110,10 +110,10 @@ rStaticExp = Reducer aux
     | Capture c <- e
     , RTNil <- stLast s
     = Rd False s e
-    | Capture c <- e
-    = case getCapture c s of
-      Right l' -> Rd True (s { stLast = l' }) (expOfRt l')
-      Left  _  -> Rd False s e
+    -- | Capture c <- e
+    -- = case getCapture c s of
+    --   Right l' -> Rd True (s { stLast = l' }) (expOfRt l')
+    --   Left  _  -> Rd False s e
     | Func l args rt fe <- e
     , isNothing l
     = let
