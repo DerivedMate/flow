@@ -469,6 +469,47 @@ However, where this feature truly comes in handy is in nested generators. Consid
 
 The latter gets rid of dummy variable declarations.
 
+Capturing can also be used with non-literal, and non-integer values:
+
+```
+{ l, r, xs.
+   { xs } => { &l:r }
+} => let ~slice
+
+%%
+   Parenthesis can be employed 
+   to increase the readability 
+   of certain expressions:
+%%
+{ l, n, xs. 
+   { xs } => { &l:(+ l r) }
+} => let ~chop
+```
+
+Even captures can be used; however, every non-integer value is still cast to int:
+
+```
+{ xs. { xs } => { &(&1:) } 
+} => let ~lastExn
+%%
+   `xs` is sliced into `xs[x_1..x_n]`;
+   cast into an Int, which corresponds
+   to the list length - 1;
+   that is then used as an index for `xs`.
+%%
+%% Consider: %%
+{[ 1, 2, 3 ]} 
+   => ~lastExn 
+   => { <~ Int } 
+   %% 3              %%
+
+%% However:  %%
+{ [] }        
+   => ~lastExn 
+   => { <~ Int } 
+   %% <scope error!> %%
+```
+
 ## Modules
 
 Separate files can be imported using `@import` statement with a **relative** module path:
