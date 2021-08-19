@@ -482,7 +482,7 @@ Capturing can also be used with non-literal, and non-integer values:
    of certain expressions:
 %%
 { l, n, xs. 
-   { xs } => { &l:(+ l r) }
+   { xs } => { &l:(+ l n) }
 } => let ~chop
 ```
 
