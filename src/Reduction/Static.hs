@@ -23,13 +23,7 @@ rTest = runReducer rStaticFuncExp
   -- [3; a=5]{ + &0 a } ~ { 8 }
   e    = Single (LTuple [BinOp OpAdd (LInt 3) (Var "a")])
 
-rIoTestString :: String -> IO ()
-rIoTestString src
-  | Just ast <- r = pPrint . fmap (runReducer rStaticExp emptyState) $ ast
-  | Just pe <- e  = pPrint pe
- where
-  (e, r) = flDistillReturn (flParseString src)
-  
+
 
 rStaticFuncExp :: Reducer FuncExp Bool
 rStaticFuncExp = Reducer aux
@@ -60,6 +54,10 @@ rStaticExp = Reducer aux
     | LTuple ls <- e    = RTTuple <$> mapM (evalLiteral s) ls
     | BinOp op p q <- e = fOfBop op <$> evalLiteral s p <*> evalLiteral s q
     | otherwise         = Nothing
+
+  setCapture :: State -> Exp -> Either String RTVal -> Rd Exp Bool
+  setCapture s _ (Right l') = Rd True (s { stLast = l' }) (expOfRt l')
+  setCapture s e l          = Rd False s e
 
   aux :: State -> Exp -> Rd Exp Bool
   aux s e
@@ -110,10 +108,16 @@ rStaticExp = Reducer aux
     | Capture c <- e
     , RTNil <- stLast s
     = Rd False s e
-    -- | Capture c <- e
-    -- = case getCapture c s of
-    --   Right l' -> Rd True (s { stLast = l' }) (expOfRt l')
-    --   Left  _  -> Rd False s e
+    | Capture (CSingle ee) <- e
+    , Just (RTInt i) <- cast TInt <$> evalLiteral s ee
+    = setCapture s e (getCaptureSingle i s)
+    | Capture (CSlice ei mej) <- e
+    , Just (RTInt i) <- cast TInt <$> evalLiteral s ei
+    , Just (RTInt j) <- cast TInt <$> (evalLiteral s =<< mej)
+    = setCapture s e (getCaptureSlice i (Just j) s)
+    | Capture (CSlice ei Nothing) <- e
+    , Just (RTInt i) <- cast TInt <$> evalLiteral s ei
+    = setCapture s e (getCaptureSlice i Nothing s)
     | Func l args rt fe <- e
     , isNothing l
     = let

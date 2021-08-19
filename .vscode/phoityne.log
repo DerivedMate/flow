@@ -29,3 +29,6 @@
 2021-08-16 02:53:13.127143317000 [76745(ThreadId 21)] ERROR APP - invalid dap result from ghci. []
 2021-08-16 02:53:19.496726522000 [76745(ThreadId 21)] CRITICAL APP - <file descriptor: 149>: hPutChar: resource vanished (Broken pipe)
 2021-08-19 16:12:41.846092585000 [42903(ThreadId 20)] CRITICAL REQUEST - invalid HANDLE. eof.
+2021-08-19 22:14:27.997048214000 [25299(ThreadId 21)] ERROR APP - invalid dap result from ghci. []
+2021-08-19 22:14:27.998008141000 [25299(ThreadId 21)] ERROR APP - <file descriptor: 149>: hPutChar: resource vanished (Broken pipe)
+2021-08-19 22:14:39.748903293000 [25299(ThreadId 21)] CRITICAL APP - <file descriptor: 149>: hPutChar: resource vanished (Broken pipe)

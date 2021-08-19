@@ -1,6 +1,7 @@
 module Reduction.Reducer where
 
 import           Data.Maybe
+import           Debug.Pretty.Simple            ( pTraceShowId )
 import           Eval.RT
 import           Syntax
 
@@ -39,4 +40,4 @@ rVoid :: Reducer e ()
 rVoid = Reducer $ \s e -> Rd { rdVal = (), rdState = s, rdExp = e }
 
 optimize :: Reducer Exp v -> Exp -> Exp
-optimize r e = rdExp $ runReducer r emptyState e 
+optimize r e = rdExp $ runReducer r emptyState e

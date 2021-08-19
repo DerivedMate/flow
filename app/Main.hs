@@ -53,20 +53,6 @@ runFile optLvl path = do
       = optimize rNullableExp . optimize rStaticExp
       | otherwise 
       = id
-{-
-do
-   undefined
- where
-  srcParse = flParseFile path
-  optSrc
-    | optLvl == 1
-    = second (fmap (bimap id (optimize rStaticExp))) <$> srcParse 
-    | optLvl == 2
-    = second (fmap (bimap id (optimize rNullableExp . optimize rStaticExp)))
-      <$> srcParse
-    | otherwise
-    = srcParse
--}
 
 main :: IO ()
 main = do

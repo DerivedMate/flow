@@ -380,10 +380,7 @@ flParseString =
   checkFullParse :: Either ParseError (ParseResult Exp) -> PReturn Exp
   checkFullParse (Right r)
     | not . null . ctxString $ ctx = Left
-    $ ParseError { peContext = ctx
-                 , peExpected = ""
-                 , peGot = ctxString ctx 
-                 }
+    $ ParseError { peContext = ctx, peExpected = "", peGot = ctxString ctx }
     | otherwise = Right r
     where ctx = prNewContext r
   checkFullParse l = l
