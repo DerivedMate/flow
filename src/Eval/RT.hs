@@ -315,16 +315,8 @@ getVarF = lookup
 getVar :: String -> State -> Maybe RTVal
 getVar k s = foldl aux Nothing (stStack s) where aux a f = a <|> getVarF k f
 
-getCapture :: CType -> State -> Either String RTVal
-getCapture (CSlice f t) s = Right $ (wrapperOfState . stLast) s (subset scope)
- where
-  t' = fromMaybe (-1) t
-  subset | t' /= -1  = take (t' - f + 1) . drop f
-         | otherwise = drop f
-  scope      = (deTuple . stLast) s
-  lastLength = rtLength . stLast
-
-getCapture (CSingle i) s
+getCaptureSingle :: Int -> State -> Either String RTVal
+getCaptureSingle i s
   | i < length scope = Right $ scope !! i
   | otherwise = Left
     (  "Cannot capture &"
@@ -334,6 +326,15 @@ getCapture (CSingle i) s
     <> ")"
     )
   where scope = (deTuple . stLast) s
+
+getCaptureSlice :: Int -> Maybe Int -> State -> Either String RTVal
+getCaptureSlice f t s = Right $ (wrapperOfState . stLast) s (subset scope)
+ where
+  t' = fromMaybe (-1) t
+  subset | t' /= -1  = take (t' - f + 1) . drop f
+         | otherwise = drop f
+  scope      = (deTuple . stLast) s
+  lastLength = rtLength . stLast
 
 correctLast :: [Arg] -> [Datum] -> [Datum]
 correctLast args [] = []

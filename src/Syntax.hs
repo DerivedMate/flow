@@ -10,16 +10,16 @@ import           Data.Functor
 import           Data.List
 import           Data.Maybe
 import           Data.Ord
+import           Debug.Pretty.Simple
 import           Lexer
 import           Module.Module
 import           PreProcessor
 import           System.IO
 import           Text.Pretty.Simple
-import Debug.Pretty.Simple
 
 data CType
-  = CSingle Int
-  | CSlice Int (Maybe Int)
+  = CSingle Exp
+  | CSlice Exp (Maybe Exp)
   deriving ( Show, Eq )
 
 data AnchorType
@@ -117,7 +117,8 @@ data Exp
 :--------------------------------}
 
 flLiteral :: Parser Exp
-flLiteral = flTuple <|> flList <|> flStr <|> flFloat <|> flBool <|> flInt
+flLiteral =
+  flTuple <|> flList <|> flStr <|> flFloat <|> flBool <|> flInt <|> flVar
 
 flInt :: Parser Exp
 flInt = LInt <$> qcNum
@@ -140,17 +141,26 @@ flStr =
   LString <$> qcEnclosedBy (qcChar '`') (qcChar '`') (many $ qcProp (/= '`'))
 
 flTuple :: Parser Exp
-flTuple =  (do _ <- qctChar '('; _ <- qctChar ')'; pure Nil)
-       <|> (LTuple <$> qcEnclosedBy (qcChar '(')
-                                    (qcChar ')')
-                                    (qcSeparatedBy (qctChar ',') flTerm)) 
+flTuple =
+  (do
+      _ <- qctChar '('
+      _ <- qctChar ')'
+      pure Nil
+    )
+    <|> qcEnclosedBy (qcChar '(') (qcChar ')') flTerm
+    <|> (LTuple <$> qcEnclosedBy (qcChar '(')
+                                 (qcChar ')')
+                                 (qcSeparatedBy (qctChar ',') flTerm)
+        )
 
 flList :: Parser Exp
-flList =  (LList <$> (qctChar '[' *> qctChar ']' $> []) )
-      <|> (LList <$> qcEnclosedBy (qcChar '[')
-                                  (qcChar ']')
-                                  (qcSeparatedBy (qctChar ',') flTerm))
-       
+flList =
+  (LList <$> (qctChar '[' *> qctChar ']' $> []))
+    <|> (LList <$> qcEnclosedBy (qcChar '[')
+                                (qcChar ']')
+                                (qcSeparatedBy (qctChar ',') flTerm)
+        )
+
 
 
 
@@ -165,7 +175,7 @@ flType = _func <|> _simple <|> _list
     (TInt <$ qctStr "Int")
       <|> (TFloat <$ qctStr "Float")
       <|> (TString <$ qctStr "Str")
-      <|> (TString <$ qctStr "Bool")
+      <|> (TBool <$ qctStr "Bool")
       <|> (TAny <$ qctStr "Any")
   _list     = TList <$> qcEnclosedBy (qctChar '[') (qctChar ']') flType
   _func     = (TFunc <$> __notFunc <* qctStr "->" <*> _func) <|> __notFunc
@@ -341,11 +351,12 @@ flVar = _var <|> _cSlice <|> _cSingle
   _var = Var <$> flId
   _cSlice =
     CSlice
-      <$> (qcChar '&' *> qcNatural)
+      <$> (qcChar '&' *> _cTerm)
       <*  qcChar ':'
-      <*> optional qcNatural
+      <*> optional _cTerm
       <&> Capture
-  _cSingle = CSingle <$> (qcChar '&' *> qcNatural) <&> Capture
+  _cSingle = CSingle <$> (qcChar '&' *> _cTerm) <&> Capture
+  _cTerm   = flLiteral <|> qcEnclosedBy (qctChar '(') (qctChar ')') flTerm
 
 {--------------------------------:
     Helpers
@@ -359,7 +370,20 @@ flPrintAST prs
   where (e, r) = flDistillReturn prs
 
 flParseString :: String -> PReturn Exp
-flParseString = flFixRootProgram . runParser flProgram . qcCtxOfString . removeComments
+flParseString =
+  checkFullParse
+    . flFixRootProgram
+    . runParser flProgram
+    . qcCtxOfString
+    . removeComments
+ where
+  checkFullParse :: Either ParseError (ParseResult Exp) -> PReturn Exp
+  checkFullParse (Right r)
+    | not . null . ctxString $ ctx = Left
+    $ ParseError { peContext = ctx, peExpected = "", peGot = ctxString ctx }
+    | otherwise = Right r
+    where ctx = prNewContext r
+  checkFullParse l = l
 
 flParseFile :: FilePath -> IO (Either String (PReturn Exp))
 flParseFile path = second flParseString <$> gatherFile path

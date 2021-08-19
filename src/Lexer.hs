@@ -3,11 +3,8 @@ module Lexer where
 import           Control.Applicative
 import           Data.Bifunctor
 import           Data.Char
-import           Data.Either
 import           Data.Function
 import           Data.Functor
-import           Data.List
-import           Text.Pretty.Simple
 import           Text.Read
 
 data ParseResult a = ParseResult
@@ -56,12 +53,12 @@ instance Monad Parser where
     Right qr -> runParser (f . prResult $ qr) (prNewContext qr)
 
 instance MonadFail Parser where
-  fail msg = Parser $ const
-    (Left $ ParseError { peContext  = qcCtxOfString ""
+  fail msg = Parser $ \c ->
+     Left $ ParseError { peContext  = c
                        , peExpected = ""
                        , peGot      = msg
                        }
-    )
+    
 
 instance Alternative Parser where
   empty = fail ""

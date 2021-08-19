@@ -37,6 +37,7 @@ library
       Helper.AssocMap
       Helper.Debug
       Helper.Error
+      Helper.MaybeT
       Helper.String
       Lexer
       Module.Graph

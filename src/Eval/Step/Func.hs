@@ -1,11 +1,16 @@
 module Eval.Step.Func where
 
+import           Control.Monad
+import           Control.Monad                  ( join )
+import           Data.Bifunctor
+import           Data.Bitraversable
+import           Data.Function
 import           Data.Functor
-import           Data.List
 import           Data.Maybe
 import           Debug.Pretty.Simple
 import           Eval.RT
 import           Eval.Step.Common
+import           Helper.MaybeT
 import           Syntax
 
 stepFunc :: StepFunction -> StepFunction
@@ -15,9 +20,7 @@ stepFunc step node@(Func l args rt f_body) s =
     fns = maybe
       []
       (\k ->
-        [ (k, RTFunc l (rtArgOfArg <$> args) rt f_body)
-        | not (funcExists k s)
-        ]
+        [ (k, RTFunc l (rtArgOfArg <$> args) rt f_body) | not (funcExists k s) ]
       )
       l
 
@@ -38,7 +41,7 @@ stepFunc step node@(Func l args rt f_body) s =
       else (RTNil, assignVars (stLast s) args <> fns, True)
     f' = vars
     s' = State { stLast = last, stStack = f' : stStack s }
-  in 
+  in
     if doRun then stepFExp f_body s' else pure [Datum Nil s']
  where
   stepFExp :: FuncExp -> State -> IO [Datum]
@@ -76,8 +79,41 @@ stepFunc _ (Var k) s | Just RTFunc{} <- v = pure [Datum (FRef k) s]
   where v = getVar k s
 
 stepFunc step (Capture c) s
-  | Right l'' <- l'     = pure [Datum Nil s { stLast = l'' }]
-  | Left errorMsg <- l' = error errorMsg
-  where l' = getCapture c s
+  | CSingle e <- c = exhaust step e s >>= matchResult . auxSingle
+  | CSlice ei mej <- c = do
+    i <- exhaustE ei
+    j <- unwrapMaybeT $ MaybeT (pure mej) >>= MaybeT . fmap Just . exhaustE
+    matchResult $ auxSlice i j
+ where
+  exhaustE e = exhaust step e s
+  auxSingle :: RTVal -> Either String RTVal
+  auxSingle v
+    | RTInt i <- cast TInt v = getCaptureSingle i s
+    | otherwise =  Left
+    $  "error casting capture index to Int; index = "
+    <> show v
+
+  auxSlice :: RTVal -> Maybe RTVal -> Either String RTVal
+  auxSlice vi vj
+    | RTInt i <- ci
+    , Just (RTInt j) <- mcj
+    = getCaptureSlice i (Just j) s
+    | RTInt i <- ci
+    , Nothing <- mcj
+    = getCaptureSlice i Nothing s
+    | otherwise
+    = Left
+      $  "error casting one/both indices of capture slice; indices = ("
+      <> show ci
+      <> ", "
+      <> show mcj
+      <> ")"
+   where
+    ci  = cast TInt vi
+    mcj = fmap (cast TInt) vj
+
+  matchResult :: Either String RTVal -> IO [Datum]
+  matchResult l' | Right l'' <- l'     = pure [Datum Nil s { stLast = l'' }]
+                 | Left errorMsg <- l' = error errorMsg
 
 stepFunc _ d _ = error $ "Unmatched expression in `stepFunc`: \n" <> show d
