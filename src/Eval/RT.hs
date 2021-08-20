@@ -112,7 +112,9 @@ cast (TList t) (  RTList   ls) = RTList (map (cast t) ls)
 
 -- Int Cast
 cast TInt      (  RTFloat  d ) = RTInt $ floor d
-cast TInt (RTString s) | all isNumber s = RTInt (read s)
+cast TInt (RTString s) | all isNumber s 
+                       , not (null s)
+                       = RTInt (read s)
                        | otherwise      = RTInt (length s)
 
 cast TInt         (RTBool True )        = RTInt 1
@@ -232,7 +234,7 @@ fOfBop OpMod a b = fOfBop OpMod (cast TInt a) (cast TInt b)
 -- String x String
 fOfBop OpAdd (RTString a)  (RTString b)  = RTString (a <> b)
 -- String Ops
-fOfBop OpMul (RTString a) (RTInt n) | n > 0 = RTString $ concat $ replicate n a
+fOfBop OpMul (RTString a) (RTInt n) | n > 0 = RTString . concat $ replicate n a
                                     | otherwise = RTString ""
 
 -- List x List
