@@ -25,8 +25,8 @@ CPS styled, interpreted, dangerously dynamically typed programming language with
       - [gen](#gen)
       - [fold](#fold)
       - [unfold](#unfold)
-    - [let](#let)
-    - [lazy](#lazy)
+      - [let](#let)
+      - [lazy](#lazy)
   - [IO](#io)
   - [Capturing](#capturing)
   - [Modules](#modules)
@@ -375,7 +375,7 @@ Fold can also accept multiple arguments:
 => { <~ [Int] }
 ```
 
-### let
+#### let
 
 ```
 { m Int, w Str, n Int. Str
@@ -398,7 +398,7 @@ Fold can also accept multiple arguments:
 { ~> Int } => gen ~foobar => { <~ Str }
 ```
 
-### lazy
+#### lazy
 
 Lazy is primarily intended for deferring argumentless functions/cells or functions with all arguments bound. 
 
